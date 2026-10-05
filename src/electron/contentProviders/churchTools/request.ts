@@ -97,7 +97,7 @@ function ctGet(domain: string, token: string, endpoint: string, params?: Record<
         httpsRequest(domain, path, "GET", headers, {}, (err, result) => {
             if (err) {
                 if (err.statusCode !== 404) console.warn(`ChurchTools [${endpoint}]:`, err.message)
-                return resolve(null)
+                return resolve({ __error: { endpoint, statusCode: err.statusCode || 0, message: err.message || "Request failed" } })
             }
             resolve(result)
         })
@@ -706,6 +706,13 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     let eventsResult = await ctGet(domain, token, "events", params)
     let events: any[] = eventsResult?.data ?? []
     console.info(`[CT-SYNC] events fetched count=${events.length}`)
+
+    if (eventsResult?.__error?.statusCode === 403) {
+        const msg = "ChurchTools sync blocked (403): your OAuth client/account can authenticate but is not allowed to read events/agenda API data."
+        console.warn(`[CT-SYNC] ${msg}`)
+        sendToMain(ToMain.TOAST, msg)
+        return
+    }
 
     // Date-scoped sync can miss services around midnight/timezone boundaries.
     // Retry once with a wider range before giving up.

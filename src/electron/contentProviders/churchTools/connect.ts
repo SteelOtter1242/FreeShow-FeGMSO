@@ -65,7 +65,8 @@ function validateToken(domain: string, token: string): Promise<"valid" | "invali
         httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => {
             if (result?.data?.id) return resolve("valid")
             const statusCode = (err as any)?.statusCode
-            if (statusCode === 401 || statusCode === 403) return resolve("invalid")
+            // 401 is a clear invalid/expired token. 403 can be permission-related on some instances.
+            if (statusCode === 401) return resolve("invalid")
             // Some CT instances don't expose this endpoint publicly (404) — keep token and avoid forced re-auth loops.
             return resolve("unknown")
         })
