@@ -59,12 +59,29 @@ function normalizeDomain(url: string): string {
     return url.trim().replace(/^https?:\/\//, "").replace(/\/api\/?$/, "").replace(/\/$/, "")
 }
 
-function validateToken(domain: string, token: string): Promise<"valid" | "invalid" | "unknown"> {
+function requestUserInfo(domain: string, token: string): Promise<{ data: any; statusCode: number }> {
     return new Promise((resolve) => {
         const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" }
-        httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => {
-            if (result?.data?.id) return resolve("valid")
-            const statusCode = (err as any)?.statusCode
+
+        // Preferred endpoint for OAuth profile info on ChurchTools.
+        httpsRequest(domain, "/oauth/userinfo", "GET", headers, {}, (userinfoErr, userinfoResult) => {
+            if (!userinfoErr && userinfoResult) return resolve({ data: userinfoResult, statusCode: 200 })
+
+            // Fallback for setups where whoami is available instead.
+            httpsRequest(domain, "/api/whoami", "GET", headers, {}, (whoamiErr, whoamiResult) => {
+                if (!whoamiErr && whoamiResult) return resolve({ data: whoamiResult, statusCode: 200 })
+                const statusCode = (userinfoErr as any)?.statusCode || (whoamiErr as any)?.statusCode || 0
+                resolve({ data: null, statusCode })
+            })
+        })
+    })
+}
+
+function validateToken(domain: string, token: string): Promise<"valid" | "invalid" | "unknown"> {
+    return new Promise((resolve) => {
+        requestUserInfo(domain, token).then(({ data, statusCode }) => {
+            const info = data?.data || data || {}
+            if (info?.id || info?.sub || info?.email || info?.username) return resolve("valid")
             // 401 is a clear invalid/expired token. 403 can be permission-related on some instances.
             if (statusCode === 401) return resolve("invalid")
             // Some CT instances don't expose this endpoint publicly (404) — keep token and avoid forced re-auth loops.
@@ -75,21 +92,26 @@ function validateToken(domain: string, token: string): Promise<"valid" | "invali
 
 function logWhoamiIdentity(domain: string, token: string, source: string): Promise<void> {
     return new Promise((resolve) => {
-        const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" }
-        httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => {
-            if (err) {
-                const statusCode = (err as any)?.statusCode || 0
+        requestUserInfo(domain, token).then(({ data, statusCode }) => {
+            if (!data) {
                 console.info(`[CT-SYNC] whoami (${source}) unavailable status=${statusCode}`)
                 return resolve()
             }
 
-            const data = result?.data || result || {}
-            const id = data?.id ?? data?.personId ?? "unknown"
-            const firstName = data?.firstName || data?.first_name || ""
-            const lastName = data?.lastName || data?.last_name || ""
-            const name = `${firstName} ${lastName}`.trim() || data?.name || "unknown"
-            const email = data?.email || data?.mail || data?.username || "unknown"
-            const keyPreview = Object.keys(data).slice(0, 8).join(",")
+            const root = data?.data || data || {}
+            const attrs = root?.attributes || root
+            const relationships = root?.relationships || {}
+            const included = Array.isArray(data?.included) ? data.included : []
+            const personId = attrs?.personId || attrs?.person_id || relationships?.person?.data?.id
+            const person = included.find((i: any) => i?.type === "person" && String(i?.id) === String(personId))?.attributes || {}
+
+            const info = { ...attrs, ...person }
+            const id = info?.id ?? root?.id ?? info?.personId ?? info?.person_id ?? personId ?? "unknown"
+            const firstName = info?.firstName || info?.first_name || ""
+            const lastName = info?.lastName || info?.last_name || ""
+            const name = `${firstName} ${lastName}`.trim() || info?.name || "unknown"
+            const email = info?.email || info?.mail || info?.username || "unknown"
+            const keyPreview = Object.keys(info).slice(0, 8).join(",")
             console.info(`[CT-SYNC] whoami (${source}) id=${id} name=${name} email=${email} keys=${keyPreview}`)
             resolve()
         })
