@@ -12,6 +12,21 @@ import type { CTScopes } from "./types"
 
 export type { CTScopes } from "./types"
 
+type CTConnectPayload = {
+    url?: string
+    sngFolder?: string
+    sngTranslationMethod?: "multiline" | "textboxes"
+    weeksAhead?: number
+    clientId?: string
+    clientSecret?: string
+}
+
+type CTLoadPayload = CTConnectPayload & {
+    serviceId?: number
+    from?: string
+    to?: string
+}
+
 export interface CTAuthDataExport {
     access_token: string
     refresh_token: string
@@ -39,7 +54,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
         return this.access !== null
     }
 
-    async connect(_scope: CTScopes, data?: { url?: string; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string }): Promise<CTAuthDataExport | null> {
+    async connect(_scope: CTScopes, data?: CTConnectPayload): Promise<CTAuthDataExport | null> {
         const result = await ctConnect(data)
         this.access = result as CTAuthDataExport | null
         return this.access
@@ -54,15 +69,25 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
         return null // all requests go through request.ts directly
     }
 
-    async loadServices(data?: { url?: string; serviceId?: number; from?: string; to?: string; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string }): Promise<void> {
+    async loadServices(data?: CTLoadPayload): Promise<void> {
         const connected = await this.connect("services", data)
         if (!connected) return
         return ctLoadServices(data?.serviceId, data?.from, data?.to)
     }
 
-    async startupLoad(_scope: CTScopes, data?: { serviceId?: number; from?: string; to?: string; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string; url?: string }): Promise<void> {
+    async startupLoad(_scope: CTScopes, data?: CTLoadPayload): Promise<void> {
         ctInitialize()
-        await ctStartupLoad(() => ctLoadServices(data?.serviceId, data?.from, data?.to), data)
+        const connectData: CTConnectPayload | undefined = data
+            ? {
+                url: data.url,
+                sngFolder: data.sngFolder,
+                sngTranslationMethod: data.sngTranslationMethod,
+                weeksAhead: data.weeksAhead,
+                clientId: data.clientId,
+                clientSecret: data.clientSecret
+            }
+            : undefined
+        await ctStartupLoad(() => ctLoadServices(data?.serviceId, data?.from, data?.to), connectData)
     }
 
     protected handleAuthCallback(_req: any, _res: any): void {}

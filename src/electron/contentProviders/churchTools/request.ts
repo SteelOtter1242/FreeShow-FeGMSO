@@ -469,20 +469,6 @@ function buildBilingualSongShow(title: string, author: string, ccli: string, key
 
 // ── Song/lyrics fetching ─────────────────────────────────────────────────────
 
-async function fetchArrangementLyrics(domain: string, token: string, songId: number, arrangementId?: number): Promise<string> {
-    if (!arrangementId) {
-        const arrs = await ctGet(domain, token, `songs/${songId}/arrangements`)
-        const arr = arrs?.data?.find((a: any) => a.attributes?.isDefault) ?? arrs?.data?.[0]
-        if (arr?.id) arrangementId = arr.id
-    }
-    if (arrangementId) {
-        const result = await ctGet(domain, token, `songs/${songId}/arrangements/${arrangementId}`)
-        const attr = result?.data?.attributes ?? {}
-        return attr.chordChart ?? attr.lyrics ?? ""
-    }
-    return ""
-}
-
 // CT agenda titles often prefix the type: "Song: Title", "Lied: Title" — strip it for matching
 function stripTypePrefix(title: string): string {
     return title.replace(/^(?:song|lied|lob|worship|musik)\W+/i, "").trim()
@@ -552,7 +538,7 @@ async function fetchSongMeta(domain: string, token: string, songId: number): Pro
 
 // ── Agenda item processing ───────────────────────────────────────────────────
 
-async function processAgendaItem(domain: string, token: string, item: any, _sngIndex?: { byTitle: Map<string, string>; byCcli: Map<string, string> }, dateLabel = "", _translationMethod: "multiline" | "textboxes" = "textboxes"): Promise<{ showId: string; show: Show } | null> {
+async function processAgendaItem(domain: string, token: string, item: any, sngIndex?: { byTitle: Map<string, string>; byCcli: Map<string, string> }, dateLabel = "", translationMethod: "multiline" | "textboxes" = "textboxes"): Promise<{ showId: string; show: Show } | null> {
     const title = (item.title ?? item.name ?? "").trim()
     const note = (item.note ?? "").trim()
 
@@ -577,14 +563,44 @@ async function processAgendaItem(domain: string, token: string, item: any, _sngI
             const resolvedTitle = meta.title || embeddedTitle || songTitle || "Song"
             const resolvedCcli  = meta.ccli  || embeddedCcli
 
+            // Resolve against locally migrated SongBeamer songs first.
+            if (sngIndex) {
+                const localMatch = await lookupSng(sngIndex, resolvedTitle, resolvedCcli)
+                if (localMatch) {
+                    const sngTitle = localMatch.sngMeta.title || resolvedTitle
+                    const sngAuthor = localMatch.sngMeta.author || meta.author || ""
+                    const sngCcli = localMatch.sngMeta.ccli || resolvedCcli
+                    const sngKey = localMatch.sngMeta.key || meta.key || ""
+                    const sngCopyright = localMatch.sngMeta.copyright || ""
+                    if (translationMethod === "textboxes" && localMatch.langCount > 1) {
+                        return buildBilingualSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, localMatch.langCount)
+                    }
+                    return buildSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.lyrics)
+                }
+            }
+
             // Keep the provider song in an explicit error state until local SongBeamer migration
             // provides a matching show title that can be used instead.
             const errorLyrics = buildSongImportErrorLyrics(resolvedTitle, resolvedCcli, "No matching local migrated song found")
             return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", errorLyrics)
         }
 
-        // Song not linked in CT database — still create a lightweight local-reference song stub.
+        // Song not linked in CT database — attempt local title lookup first.
         if (songTitle) {
+            if (sngIndex) {
+                const localMatch = await lookupSng(sngIndex, songTitle)
+                if (localMatch) {
+                    const sngTitle = localMatch.sngMeta.title || songTitle
+                    const sngAuthor = localMatch.sngMeta.author || ""
+                    const sngCcli = localMatch.sngMeta.ccli || ""
+                    const sngKey = localMatch.sngMeta.key || ""
+                    const sngCopyright = localMatch.sngMeta.copyright || ""
+                    if (translationMethod === "textboxes" && localMatch.langCount > 1) {
+                        return buildBilingualSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, localMatch.langCount)
+                    }
+                    return buildSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.lyrics)
+                }
+            }
             const errorLyrics = buildSongImportErrorLyrics(songTitle, "", "ChurchTools item is not linked to a ChurchTools song")
             return buildSongShow(songTitle, "", "", "", "", errorLyrics)
         }
