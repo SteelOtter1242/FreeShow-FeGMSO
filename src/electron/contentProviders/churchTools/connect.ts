@@ -73,6 +73,29 @@ function validateToken(domain: string, token: string): Promise<"valid" | "invali
     })
 }
 
+function logWhoamiIdentity(domain: string, token: string, source: string): Promise<void> {
+    return new Promise((resolve) => {
+        const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" }
+        httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => {
+            if (err) {
+                const statusCode = (err as any)?.statusCode || 0
+                console.info(`[CT-SYNC] whoami (${source}) unavailable status=${statusCode}`)
+                return resolve()
+            }
+
+            const data = result?.data || result || {}
+            const id = data?.id ?? data?.personId ?? "unknown"
+            const firstName = data?.firstName || data?.first_name || ""
+            const lastName = data?.lastName || data?.last_name || ""
+            const name = `${firstName} ${lastName}`.trim() || data?.name || "unknown"
+            const email = data?.email || data?.mail || data?.username || "unknown"
+            const keyPreview = Object.keys(data).slice(0, 8).join(",")
+            console.info(`[CT-SYNC] whoami (${source}) id=${id} name=${name} email=${email} keys=${keyPreview}`)
+            resolve()
+        })
+    })
+}
+
 function hasExpired(access: CTAuthData): boolean {
     if (!access?.created_at || !access?.expires_in) return true
     const now = Math.floor(Date.now() / 1000)
@@ -339,6 +362,7 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
 
     const merged = mergeSettings({ ...access, domain: baseDomain, clientId, clientSecret }, data)
     saveAccess(merged)
+    await logWhoamiIdentity(baseDomain, merged.access_token, interactive ? "interactive-connect" : "non-interactive-sync")
 
     if (!announcedThisRun) {
         const hadStoredAccess = !!stored?.access_token
