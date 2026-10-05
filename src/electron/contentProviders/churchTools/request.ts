@@ -685,6 +685,7 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
 export async function ctLoadServices(serviceId?: number, fromOverride?: string, toOverride?: string): Promise<void> {
     const access = ctGetAccess()
     if (!access?.domain || !access?.access_token) {
+        console.warn("[CT-SYNC] ctLoadServices aborted: missing domain/token")
         sendToMain(ToMain.TOAST, "ChurchTools sync skipped: missing connection or access token")
         return
     }
@@ -697,11 +698,14 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     const from = fromOverride || computedFrom
     const to = toOverride || computedTo
 
+    console.info(`[CT-SYNC] load start serviceId=${serviceId ?? "(all)"} from=${from} to=${to} domain=${domain}`)
+
     const params: Record<string, string> = { from, to, include: "eventFiles" }
     if (serviceId) params.serviceId = String(serviceId)
 
     let eventsResult = await ctGet(domain, token, "events", params)
     let events: any[] = eventsResult?.data ?? []
+    console.info(`[CT-SYNC] events fetched count=${events.length}`)
 
     // Date-scoped sync can miss services around midnight/timezone boundaries.
     // Retry once with a wider range before giving up.
@@ -715,6 +719,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
         const fallbackParams: Record<string, string> = { ...params, from: fallbackFrom, to: fallbackTo }
         eventsResult = await ctGet(domain, token, "events", fallbackParams)
         events = eventsResult?.data ?? []
+        console.info(`[CT-SYNC] fallback window used from=${fallbackFrom} to=${fallbackTo} count=${events.length}`)
         if (events.length) sendToMain(ToMain.TOAST, `ChurchTools: no exact date match; synced from ${fallbackFrom} to ${fallbackTo}`)
     }
 
@@ -748,6 +753,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
 
             const agendaResult = await ctGet(domain, token, `events/${eventId}/agenda`, { include: "songs" })
             const rawItems: any[] = agendaResult?.data?.attributes?.items ?? agendaResult?.data?.items ?? []
+            console.info(`[CT-SYNC] event ${eventId} \"${eventName}\" agendaItems=${rawItems.length}`)
 
             const sortedItems = [...rawItems].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
@@ -786,6 +792,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
                 rawEventFiles = detail?.data?.eventFiles ?? detail?.data?.attributes?.eventFiles ?? []
             }
             const attachments = await fetchEventAttachments(domain, token, eventId, rawEventFiles)
+            if (attachments.length) console.info(`[CT-SYNC] event ${eventId} attachmentsImported=${attachments.length}`)
             // Append attachments: videos as playable shows, PPTX/PDF auto-converted to slides
             for (const att of attachments) {
                 const addAttachmentPlaceholder = (reason: string) => {
@@ -848,6 +855,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
                     folderName: "",
                     items: projectItems
                 })
+                console.info(`[CT-SYNC] event ${eventId} projectItems=${projectItems.length}`)
             }
         })
     )
@@ -859,6 +867,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
 
     const sngSummary = sngIndex ? `sng:${sngIndex.byTitle.size}t/${sngIndex.byCcli.size}c` : "sng:none"
     const eventKeys = Object.keys(events[0]?.attributes ?? events[0] ?? {}).slice(0, 8).join(",")
+    console.info(`[CT-SYNC] finished projects=${projects.length} shows=${shows.length} ${sngSummary}`)
     sendToMain(ToMain.TOAST, `CT: ${projects.length} services | ${sngSummary} | evKeys:${eventKeys}`)
     sendToMain(ToMain.PROVIDER_PROJECTS, { providerId: "churchtools", categoryName: "ChurchTools", shows, projects })
 

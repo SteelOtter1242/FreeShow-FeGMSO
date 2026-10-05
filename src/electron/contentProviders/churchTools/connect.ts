@@ -300,6 +300,8 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     const clientId = data?.clientId?.trim() || stored?.clientId || DEFAULT_CT_CLIENT_ID
     const clientSecret = data?.clientSecret ?? stored?.clientSecret ?? DEFAULT_CT_CLIENT_SECRET
 
+    console.info(`[CT-SYNC] ctConnect start interactive=${interactive} domain=${baseDomain} clientId=${clientId || "(empty)"} hasSecret=${clientSecret ? "yes" : "no"}`)
+
     let access: CTAuthData = CT_ACCESS || stored
     if (access?.domain && access.domain !== baseDomain) access = null
 
@@ -314,18 +316,22 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     }
 
     if (access && hasExpired(access)) {
+        console.info("[CT-SYNC] token expired -> refreshing")
         access = await refreshToken(access)
     }
 
     if (access?.access_token) {
         const verified = await validateToken(baseDomain, access.access_token)
+        console.info(`[CT-SYNC] token validation result=${verified}`)
         if (verified === "invalid") access = null
     }
 
     if (!access && interactive) {
+        console.info("[CT-SYNC] no usable access token -> starting interactive auth")
         access = await authenticate(baseDomain, clientId, clientSecret)
     }
     if (!access) {
+        console.warn(`[CT-SYNC] ctConnect failed interactive=${interactive}`)
         if (!interactive) sendToMain(ToMain.TOAST, "ChurchTools sync skipped: not connected. Connect ChurchTools in Settings first.")
         return null
     }
@@ -338,6 +344,8 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
         sendToMain(ToMain.PROVIDER_CONNECT, { providerId: "churchtools", success: true, isFirstConnection: !hadStoredAccess })
         announcedThisRun = true
     }
+
+    console.info("[CT-SYNC] ctConnect success")
 
     return merged
 }
