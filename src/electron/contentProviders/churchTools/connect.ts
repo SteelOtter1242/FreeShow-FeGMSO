@@ -17,7 +17,8 @@ export const CT_SCOPE: CTScopes = "services"
 const CT_PORT = 5504
 const DEFAULT_CT_CLIENT_ID = process.env.CHURCHTOOLS_CLIENT_ID || "freeshow"
 const DEFAULT_CT_CLIENT_SECRET = process.env.CHURCHTOOLS_CLIENT_SECRET || ""
-const OAUTH_SCOPE = ""
+// ChurchTools API access requires explicit OAuth scope for API-capable tokens.
+const OAUTH_SCOPE = "api"
 const AUTH_FLOW_TIMEOUT_MS = 10 * 60 * 1000
 
 type CTConnectData = {
