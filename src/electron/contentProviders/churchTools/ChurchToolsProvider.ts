@@ -34,7 +34,7 @@ export interface CTAuthDataExport {
     token_type: "Bearer"
     created_at: number
     expires_in: number
-    scope: CTScopes
+    scope: string
     domain: string
 }
 

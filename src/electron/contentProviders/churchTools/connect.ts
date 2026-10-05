@@ -125,6 +125,19 @@ function hasExpired(access: CTAuthData): boolean {
     return access.created_at + access.expires_in - 30 <= now
 }
 
+function normalizeScope(scope?: string): string {
+    return (scope || "").trim()
+}
+
+function hasRequiredScope(scope: string | undefined, requiredScope: string): boolean {
+    if (!requiredScope) return true
+    const scopes = normalizeScope(scope)
+        .split(/\s+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    return scopes.includes(requiredScope.toLowerCase())
+}
+
 function mergeSettings(access: NonNullable<CTAuthData>, data?: CTConnectData): NonNullable<CTAuthData> {
     const updated = { ...access }
     if (data?.sngFolder !== undefined) updated.sngFolder = data.sngFolder?.trim() || undefined
@@ -174,7 +187,7 @@ function refreshToken(access: NonNullable<CTAuthData>): Promise<CTAuthData> {
                 token_type: "Bearer",
                 created_at: data.created_at || Math.floor(Date.now() / 1000),
                 expires_in: data.expires_in || access.expires_in || 3600,
-                scope: CT_SCOPE,
+                scope: normalizeScope(data.scope) || normalizeScope(access.scope),
                 domain: access.domain,
                 clientId: access.clientId,
                 clientSecret: access.clientSecret
@@ -295,7 +308,7 @@ async function startAuthentication(domain: string, clientId: string, clientSecre
                     token_type: "Bearer",
                     created_at: data.created_at || Math.floor(Date.now() / 1000),
                     expires_in: data.expires_in || 3600,
-                    scope: CT_SCOPE,
+                    scope: normalizeScope(data.scope),
                     domain,
                     clientId,
                     clientSecret: clientSecret || ""
@@ -357,8 +370,7 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
             ...access,
             domain: baseDomain,
             clientId,
-            clientSecret,
-            scope: CT_SCOPE
+            clientSecret
         }
     }
 
@@ -371,6 +383,20 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
         const verified = await validateToken(baseDomain, access.access_token)
         console.info(`[CT-SYNC] token validation result=${verified}`)
         if (verified === "invalid") access = null
+    }
+
+    if (access && OAUTH_SCOPE && !hasRequiredScope(access.scope, OAUTH_SCOPE)) {
+        console.warn(`[CT-SYNC] token missing required OAuth scope=${OAUTH_SCOPE}; token_scope=${access.scope || "(none)"}`)
+        if (interactive) {
+            // Force an interactive re-auth so ChurchTools can issue a token with the required scope.
+            access = null
+        } else {
+            sendToMain(
+                ToMain.TOAST,
+                `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${OAUTH_SCOPE}'. Reconnect ChurchTools in Settings.`
+            )
+            return null
+        }
     }
 
     if (!access && interactive) {
@@ -393,7 +419,7 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
         announcedThisRun = true
     }
 
-        console.info(`[CT-SYNC] ctConnect success scope=${merged.scope || "(none)"}`)
+    console.info(`[CT-SYNC] ctConnect success scope=${merged.scope || "(none)"}`)
 
     return merged
 }
