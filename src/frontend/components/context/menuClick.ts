@@ -1170,6 +1170,7 @@ const clickActions = {
             cloudOnly: false,
             data: {
                 interactive: false,
+                importProjectsOnly: true,
                 from,
                 to,
                 sngFolder: (providerData.sngFolder || "").trim() || undefined,

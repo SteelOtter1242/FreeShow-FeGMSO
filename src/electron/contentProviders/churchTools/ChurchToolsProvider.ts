@@ -27,6 +27,7 @@ type CTLoadPayload = CTConnectPayload & {
     serviceId?: number
     from?: string
     to?: string
+    importProjectsOnly?: boolean
 }
 
 export interface CTAuthDataExport {
@@ -86,7 +87,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
     async loadServices(data?: CTLoadPayload): Promise<void> {
         const connected = await this.connect("services", data)
         if (!connected) return
-        return ctLoadServices(data?.serviceId, data?.from, data?.to)
+        return ctLoadServices(data?.serviceId, data?.from, data?.to, data?.importProjectsOnly)
     }
 
     async startupLoad(_scope: CTScopes, data?: CTLoadPayload): Promise<void> {
@@ -102,7 +103,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
                 clientSecret: data.clientSecret
             }
             : undefined
-        await ctStartupLoad(() => ctLoadServices(data?.serviceId, data?.from, data?.to), connectData)
+        await ctStartupLoad(() => ctLoadServices(data?.serviceId, data?.from, data?.to, data?.importProjectsOnly), connectData)
     }
 
     protected handleAuthCallback(_req: any, _res: any): void {}

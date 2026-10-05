@@ -422,7 +422,7 @@ export const contextMenuLayouts: { [key: string]: string[] } = {
 
     // CALENDAR
     event: ["GROUP_edit", "duplicate", "delete", "delete_all"],
-    event_sync: ["sync_event_date", "SEPARATOR", "GROUP_edit", "duplicate", "delete", "delete_all"],
+    event_sync: ["GROUP_edit", "duplicate", "delete", "delete_all", "SEPARATOR", "sync_event_date"],
 
     // SETTINGS
     theme: ["GROUP_rename_only", "duplicate", "delete", "SEPARATOR", "export", "SEPARATOR", "reset_theme"], // "GROUP_rename"

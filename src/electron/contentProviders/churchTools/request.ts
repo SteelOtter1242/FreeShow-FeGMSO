@@ -681,7 +681,7 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-export async function ctLoadServices(serviceId?: number, fromOverride?: string, toOverride?: string): Promise<void> {
+export async function ctLoadServices(serviceId?: number, fromOverride?: string, toOverride?: string, importProjectsOnly = false): Promise<void> {
     const access = ctGetAccess()
     if (!access?.domain || !access?.access_token) {
         console.warn("[CT-SYNC] ctLoadServices aborted: missing domain/token")
@@ -882,6 +882,11 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     console.info(`[CT-SYNC] finished projects=${projects.length} shows=${shows.length} ${sngSummary}`)
     sendToMain(ToMain.TOAST, `CT: ${projects.length} services | ${sngSummary} | evKeys:${eventKeys}`)
     sendToMain(ToMain.PROVIDER_PROJECTS, { providerId: "churchtools", categoryName: "ChurchTools", shows, projects })
+
+    if (importProjectsOnly) {
+        console.info("[CT-SYNC] calendar import skipped (project-only sync)")
+        return
+    }
 
     // Import CT calendar appointments into the FreeShow calendar widget
     await ctLoadCalendarEvents(domain, token, from, to)
