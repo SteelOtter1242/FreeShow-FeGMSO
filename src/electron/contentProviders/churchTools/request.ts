@@ -700,7 +700,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
 
     console.info(`[CT-SYNC] load start serviceId=${serviceId ?? "(all)"} from=${from} to=${to} domain=${domain}`)
 
-    const params: Record<string, string> = { from, to, include: "eventFiles" }
+    const params: Record<string, string> = { from, to }
     if (serviceId) params.serviceId = String(serviceId)
 
     let eventsResult = await ctGet(domain, token, "events", params)

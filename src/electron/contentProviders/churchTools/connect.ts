@@ -392,7 +392,7 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
         announcedThisRun = true
     }
 
-    console.info("[CT-SYNC] ctConnect success")
+        console.info(`[CT-SYNC] ctConnect success scope=${merged.scope || "(none)"}`)
 
     return merged
 }
