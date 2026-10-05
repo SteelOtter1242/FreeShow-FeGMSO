@@ -389,17 +389,8 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     }
 
     if (access && requiredScope && !hasRequiredScope(access.scope, requiredScope)) {
-        console.warn(`[CT-SYNC] token missing required OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"}`)
-        if (interactive) {
-            // Force an interactive re-auth so ChurchTools can issue a token with the required scope.
-            access = null
-        } else {
-            sendToMain(
-                ToMain.TOAST,
-                `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${requiredScope}'. Reconnect ChurchTools in Settings.`
-            )
-            return null
-        }
+        // Some ChurchTools setups omit scope in token responses; rely on real API responses instead.
+        console.warn(`[CT-SYNC] token missing declared OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"} (continuing)`)
     }
 
     if (!access && interactive) {
@@ -413,12 +404,8 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     }
 
     if (requiredScope && !hasRequiredScope(access.scope, requiredScope)) {
-        console.warn(`[CT-SYNC] token missing required OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"}`)
-        sendToMain(
-            ToMain.TOAST,
-            `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${requiredScope}'. Reconnect ChurchTools in Settings.`
-        )
-        return null
+        // Keep going and let request-layer 403 handling decide if access is truly denied.
+        console.warn(`[CT-SYNC] token missing declared OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"} (continuing)`)
     }
 
     const merged = mergeSettings({ ...access, domain: baseDomain, clientId, clientSecret }, data)
