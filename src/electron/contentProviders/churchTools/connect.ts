@@ -5,6 +5,7 @@
  */
 
 import { createHash, randomFillSync } from "crypto"
+import https from "https"
 import { ToMain } from "../../../types/IPC/ToMain"
 import { getContentProviderAccess, setContentProviderAccess } from "../../data/contentProviders"
 import { sendToMain } from "../../IPC/main"
@@ -128,13 +129,54 @@ function generateCodeChallenge(verifier: string) {
     return Buffer.from(hash).toString("base64url")
 }
 
-function startAuthentication(domain: string, clientId: string, clientSecret: string): Promise<CTAuthData> {
+function probeUrlStatus(domain: string, requestPath: string): Promise<number> {
+    return new Promise((resolve) => {
+        const req = https.request(
+            {
+                hostname: domain,
+                port: 443,
+                path: requestPath,
+                method: "GET",
+                headers: { Accept: "text/html", "User-Agent": "FreeShow/1.0" }
+            },
+            (res) => {
+                const status = res.statusCode || 0
+                res.resume()
+                resolve(status)
+            }
+        )
+        req.on("error", () => resolve(0))
+        req.end()
+    })
+}
+
+async function startAuthentication(domain: string, clientId: string, clientSecret: string): Promise<CTAuthData> {
     const express = require("express")
     const app = express()
     const path = "/auth/complete"
     const redirectUri = `http://localhost:${CT_PORT}${path}`
     const codeVerifier = generateCodeVerifier()
     const codeChallenge = generateCodeChallenge(codeVerifier)
+
+    const query = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        code_challenge: codeChallenge,
+        code_challenge_method: "S256"
+    })
+    if (OAUTH_SCOPE) query.set("scope", OAUTH_SCOPE)
+
+    const authorizePath = `/oauth/authorize?${query.toString()}`
+    const preflightStatus = await probeUrlStatus(domain, authorizePath)
+    if (preflightStatus === 404) {
+        const clientHint = clientId === DEFAULT_CT_CLIENT_ID ? " (currently using default client_id=freeshow)" : ""
+        sendToMain(
+            ToMain.ALERT,
+            `ChurchTools OAuth authorize request returned 404${clientHint}.\nPlease verify your OAuth app in ChurchTools and ensure this redirect URL is registered:\n${redirectUri}`
+        )
+        return null
+    }
 
     app.use(express.json())
 
@@ -197,16 +239,7 @@ function startAuthentication(domain: string, clientId: string, clientSecret: str
             })
         })
 
-        const query = new URLSearchParams({
-            client_id: clientId,
-            redirect_uri: redirectUri,
-            response_type: "code",
-            code_challenge: codeChallenge,
-            code_challenge_method: "S256"
-        })
-        if (OAUTH_SCOPE) query.set("scope", OAUTH_SCOPE)
-
-        pendingAuthUrl = `https://${domain}/oauth/authorize?${query.toString()}`
+        pendingAuthUrl = `https://${domain}${authorizePath}`
         openURL(pendingAuthUrl)
     })
 }
