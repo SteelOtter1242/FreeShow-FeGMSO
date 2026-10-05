@@ -88,6 +88,19 @@ function saveAccess(access: NonNullable<CTAuthData>): NonNullable<CTAuthData> {
     return access
 }
 
+function requestCtToken(domain: string, params: Record<string, string>): Promise<any> {
+    return new Promise((resolve) => {
+        // Newer ChurchTools instances expose /oauth/access_token, while some setups still use /oauth/token.
+        httpsRequest(domain, "/oauth/access_token", "POST", {}, params, (err, data) => {
+            if (!err && data?.access_token) return resolve(data)
+
+            httpsRequest(domain, "/oauth/token", "POST", {}, params, (_fallbackErr, fallbackData) => {
+                resolve(fallbackData?.access_token ? fallbackData : null)
+            })
+        })
+    })
+}
+
 function refreshToken(access: NonNullable<CTAuthData>): Promise<CTAuthData> {
     return new Promise((resolve) => {
         if (!access.refresh_token) return resolve(null)
@@ -99,8 +112,8 @@ function refreshToken(access: NonNullable<CTAuthData>): Promise<CTAuthData> {
         }
         if (access.clientSecret) params.client_secret = access.clientSecret
 
-        httpsRequest(access.domain, "/oauth/token", "POST", {}, params, (err, data) => {
-            if (err || !data?.access_token) return resolve(null)
+        requestCtToken(access.domain, params).then((data) => {
+            if (!data?.access_token) return resolve(null)
 
             const refreshed: NonNullable<CTAuthData> = {
                 ...access,
@@ -213,10 +226,10 @@ async function startAuthentication(domain: string, clientId: string, clientSecre
             }
             if (clientSecret) params.client_secret = clientSecret
 
-            httpsRequest(domain, "/oauth/token", "POST", {}, params, (err, data) => {
-                if (err || !data?.access_token) {
+            requestCtToken(domain, params).then((data) => {
+                if (!data?.access_token) {
                     res.setHeader("Content-Type", "text/html")
-                    res.send(HTML_ERROR.replace("{error_msg}", err?.message || "Could not receive access token"))
+                    res.send(HTML_ERROR.replace("{error_msg}", "Could not receive access token"))
                     sendToMain(ToMain.ALERT, "Could not authorize ChurchTools. Please verify domain and OAuth client settings.")
                     return finish(null)
                 }
