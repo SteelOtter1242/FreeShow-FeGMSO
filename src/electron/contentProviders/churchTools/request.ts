@@ -540,7 +540,7 @@ async function fetchSongMeta(domain: string, token: string, songId: number): Pro
 
 // ── Agenda item processing ───────────────────────────────────────────────────
 
-async function processAgendaItem(domain: string, token: string, item: any, sngIndex?: { byTitle: Map<string, string>; byCcli: Map<string, string> }, dateLabel = "", translationMethod: "multiline" | "textboxes" = "textboxes"): Promise<{ showId: string; show: Show } | null> {
+async function processAgendaItem(domain: string, token: string, item: any, _sngIndex?: { byTitle: Map<string, string>; byCcli: Map<string, string> }, dateLabel = "", _translationMethod: "multiline" | "textboxes" = "textboxes"): Promise<{ showId: string; show: Show } | null> {
     const title = (item.title ?? item.name ?? "").trim()
     const note = (item.note ?? "").trim()
 
@@ -557,40 +557,21 @@ async function processAgendaItem(domain: string, token: string, item: any, sngIn
         console.info(`ChurchTools: song item title="${title}" songObj=${JSON.stringify(songObj)?.slice(0, 200)}`)
 
         if (linkedSongId) {
-            // Song linked to CT database — get metadata + CT lyrics, fall back to .sng
+            // Song linked to CT database — reference local migrated FreeShow songs by title/CCLI.
             const songId: number = linkedSongId
-            const arrangementId: number | undefined = songObj?.arrangements?.[0]?.id ?? songObj?.arrangementId
             const meta = await fetchSongMeta(domain, token, songId)
-            // Merge: prefer API meta, fall back to embedded data from agenda item
+
+            // Merge: prefer API meta, fall back to embedded data from agenda item.
             const resolvedTitle = meta.title || embeddedTitle || songTitle || "Song"
             const resolvedCcli  = meta.ccli  || embeddedCcli
-            const ctLyrics = await fetchArrangementLyrics(domain, token, songId, arrangementId)
-            const sngResult = sngIndex ? await lookupSng(sngIndex, resolvedTitle, resolvedCcli) : null
-            const finalLyrics = ctLyrics || sngResult?.lyrics || ""
-            const sngMeta = sngResult?.sngMeta
-            const resolvedAuthor = meta.author || sngMeta?.author || ""
-            const resolvedKey    = meta.key    || sngMeta?.key    || ""
-            const finalCcli      = resolvedCcli || sngMeta?.ccli  || ""
-            const copyright      = sngMeta?.copyright || ""
-            const showName = finalCcli ? `${finalCcli} ${resolvedTitle}` : resolvedTitle
-            if (translationMethod === "textboxes" && sngResult && sngResult.langCount >= 2) {
-                return buildBilingualSongShow(showName, resolvedAuthor, finalCcli, resolvedKey, copyright, sngResult.raw, sngResult.langCount)
-            }
-            return buildSongShow(showName, resolvedAuthor, finalCcli, resolvedKey, copyright, finalLyrics)
+
+            // Keep the provider song as a metadata stub. Frontend sync logic will prefer existing
+            // local shows with the same title when songOrigin is "local".
+            return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", "")
         }
 
-        // Song not linked to CT database — only promote to song show if .sng lyrics are found
-        if (sngIndex && songTitle) {
-            const sngResult = await lookupSng(sngIndex, songTitle)
-            if (sngResult) {
-                const sm = sngResult.sngMeta
-                if (translationMethod === "textboxes" && sngResult.langCount >= 2) {
-                    return buildBilingualSongShow(songTitle, sm.author, sm.ccli, sm.key, sm.copyright, sngResult.raw, sngResult.langCount)
-                }
-                return buildSongShow(songTitle, sm.author, sm.ccli, sm.key, sm.copyright, sngResult.lyrics)
-            }
-        }
-        // No lyrics found: fall through to date-prefixed header show
+        // Song not linked in CT database — still create a lightweight local-reference song stub.
+        if (songTitle) return buildSongShow(songTitle, "", "", "", "", "")
     }
 
     if (!title) return null
