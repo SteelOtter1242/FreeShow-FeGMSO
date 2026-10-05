@@ -19,6 +19,7 @@ type CTConnectPayload = {
     weeksAhead?: number
     clientId?: string
     clientSecret?: string
+    interactive?: boolean
 }
 
 type CTLoadPayload = CTConnectPayload & {
@@ -55,7 +56,18 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
     }
 
     async connect(_scope: CTScopes, data?: CTConnectPayload): Promise<CTAuthDataExport | null> {
-        const result = await ctConnect(data)
+        const interactive = data?.interactive !== false
+        const connectData = data
+            ? {
+                url: data.url,
+                sngFolder: data.sngFolder,
+                sngTranslationMethod: data.sngTranslationMethod,
+                weeksAhead: data.weeksAhead,
+                clientId: data.clientId,
+                clientSecret: data.clientSecret
+            }
+            : undefined
+        const result = await ctConnect(connectData, { interactive })
         this.access = result as CTAuthDataExport | null
         return this.access
     }

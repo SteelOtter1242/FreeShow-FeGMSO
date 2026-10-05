@@ -116,6 +116,7 @@
                 providerId: "churchtools",
                 cloudOnly: false,
                 data: {
+                    interactive: true,
                     url: ($contentProviderData.churchtools?.url || "").trim(),
                     clientId: ($contentProviderData.churchtools?.clientId || "").trim() || undefined,
                     clientSecret: $contentProviderData.churchtools?.clientSecret || undefined,
@@ -142,6 +143,7 @@
             providerId: "churchtools",
             cloudOnly: false,
             data: {
+                interactive: false,
                 url: ($contentProviderData.churchtools?.url || "").trim() || undefined,
                 clientId: ($contentProviderData.churchtools?.clientId || "").trim() || undefined,
                 clientSecret: $contentProviderData.churchtools?.clientSecret || undefined,

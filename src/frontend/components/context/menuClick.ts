@@ -1166,6 +1166,7 @@ const clickActions = {
             providerId: "churchtools",
             cloudOnly: false,
             data: {
+                interactive: false,
                 from,
                 to,
                 sngFolder: (providerData.sngFolder || "").trim() || undefined,
