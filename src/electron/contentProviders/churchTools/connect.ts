@@ -59,10 +59,16 @@ function normalizeDomain(url: string): string {
     return url.trim().replace(/^https?:\/\//, "").replace(/\/api\/?$/, "").replace(/\/$/, "")
 }
 
-function whoami(domain: string, token: string): Promise<any> {
+function validateToken(domain: string, token: string): Promise<"valid" | "invalid" | "unknown"> {
     return new Promise((resolve) => {
         const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" }
-        httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => resolve(err ? null : result))
+        httpsRequest(domain, "/api/whoami", "GET", headers, {}, (err, result) => {
+            if (result?.data?.id) return resolve("valid")
+            const statusCode = (err as any)?.statusCode
+            if (statusCode === 401 || statusCode === 403) return resolve("invalid")
+            // Some CT instances don't expose this endpoint publicly (404) — keep token and avoid forced re-auth loops.
+            return resolve("unknown")
+        })
     })
 }
 
@@ -312,8 +318,8 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     }
 
     if (access?.access_token) {
-        const verified = await whoami(baseDomain, access.access_token)
-        if (!verified?.data?.id) access = null
+        const verified = await validateToken(baseDomain, access.access_token)
+        if (verified === "invalid") access = null
     }
 
     if (!access && interactive) {

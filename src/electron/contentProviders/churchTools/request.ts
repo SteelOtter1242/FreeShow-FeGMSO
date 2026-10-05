@@ -701,7 +701,11 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     const events: any[] = eventsResult?.data ?? []
 
     if (!events.length) {
-        sendToMain(ToMain.TOAST, "No upcoming ChurchTools services found in the next 8 weeks")
+        if (fromOverride || toOverride) {
+            sendToMain(ToMain.TOAST, `ChurchTools: no services found from ${from} to ${to}`)
+        } else {
+            sendToMain(ToMain.TOAST, "No upcoming ChurchTools services found in the next 8 weeks")
+        }
         return
     }
 
