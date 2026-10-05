@@ -1174,6 +1174,7 @@ const clickActions = {
                 to,
                 sngFolder: (providerData.sngFolder || "").trim() || undefined,
                 sngTranslationMethod: providerData.sngTranslationMethod || undefined,
+                weeksBack: providerData.weeksBack || undefined,
                 weeksAhead: providerData.weeksAhead || undefined,
                 clientId: (providerData.clientId || "").trim() || undefined,
                 clientSecret: providerData.clientSecret || undefined,

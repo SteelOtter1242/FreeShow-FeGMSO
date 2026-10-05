@@ -16,6 +16,7 @@ type CTConnectPayload = {
     url?: string
     sngFolder?: string
     sngTranslationMethod?: "multiline" | "textboxes"
+    weeksBack?: number
     weeksAhead?: number
     clientId?: string
     clientSecret?: string
@@ -62,6 +63,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
                 url: data.url,
                 sngFolder: data.sngFolder,
                 sngTranslationMethod: data.sngTranslationMethod,
+                weeksBack: data.weeksBack,
                 weeksAhead: data.weeksAhead,
                 clientId: data.clientId,
                 clientSecret: data.clientSecret
@@ -94,6 +96,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
                 url: data.url,
                 sngFolder: data.sngFolder,
                 sngTranslationMethod: data.sngTranslationMethod,
+                weeksBack: data.weeksBack,
                 weeksAhead: data.weeksAhead,
                 clientId: data.clientId,
                 clientSecret: data.clientSecret

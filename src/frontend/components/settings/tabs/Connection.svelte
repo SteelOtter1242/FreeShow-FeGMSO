@@ -123,6 +123,7 @@
                     serviceId: $contentProviderData.churchtools?.serviceId || undefined,
                     sngFolder: ($contentProviderData.churchtools?.sngFolder || "").trim() || undefined,
                     sngTranslationMethod: $contentProviderData.churchtools?.sngTranslationMethod || undefined,
+                    weeksBack: $contentProviderData.churchtools?.weeksBack || undefined,
                     weeksAhead: $contentProviderData.churchtools?.weeksAhead || undefined
                 }
             })
@@ -149,6 +150,7 @@
                 clientSecret: $contentProviderData.churchtools?.clientSecret || undefined,
                 sngFolder: ($contentProviderData.churchtools?.sngFolder || "").trim() || undefined,
                 sngTranslationMethod: $contentProviderData.churchtools?.sngTranslationMethod || undefined,
+                weeksBack: $contentProviderData.churchtools?.weeksBack || undefined,
                 weeksAhead: $contentProviderData.churchtools?.weeksAhead || undefined
             }
         })
@@ -365,7 +367,8 @@
             <MaterialTextInput label="OAuth Client ID (optional)" placeholder="freeshow" value={$contentProviderData.churchtools?.clientId || ""} on:change={(e) => updateProvider("churchtools", "clientId", e.detail)} />
             <MaterialTextInput label="OAuth Client Secret (optional)" value={$contentProviderData.churchtools?.clientSecret || ""} on:change={(e) => updateProvider("churchtools", "clientSecret", e.detail)} />
             <MaterialNumberInput label="Service ID (optional)" value={$contentProviderData.churchtools?.serviceId || 0} on:change={(e) => updateProvider("churchtools", "serviceId", e.detail || undefined)} />
-            <MaterialNumberInput label="Weeks ahead" value={$contentProviderData.churchtools?.weeksAhead ?? 2} on:change={(e) => updateProvider("churchtools", "weeksAhead", e.detail || 2)} />
+            <MaterialNumberInput label="Weeks back" value={$contentProviderData.churchtools?.weeksBack ?? 3} on:change={(e) => updateProvider("churchtools", "weeksBack", e.detail || 3)} />
+            <MaterialNumberInput label="Weeks ahead" value={$contentProviderData.churchtools?.weeksAhead ?? 9} on:change={(e) => updateProvider("churchtools", "weeksAhead", e.detail || 9)} />
             <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
         </div>
     </InputRow>
@@ -452,7 +455,9 @@
 
     <MaterialDropdown label="Song origin" options={providerOriginOptions} value={$contentProviderData.churchtools?.songOrigin ?? "local"} on:change={(e) => updateProvider("churchtools", "songOrigin", e.detail)} />
 
-    <MaterialNumberInput label="Weeks ahead" value={$contentProviderData.churchtools?.weeksAhead ?? 2} on:change={(e) => updateProvider("churchtools", "weeksAhead", e.detail || 2)} />
+    <MaterialNumberInput label="Weeks back" value={$contentProviderData.churchtools?.weeksBack ?? 3} on:change={(e) => updateProvider("churchtools", "weeksBack", e.detail || 3)} />
+
+    <MaterialNumberInput label="Weeks ahead" value={$contentProviderData.churchtools?.weeksAhead ?? 9} on:change={(e) => updateProvider("churchtools", "weeksAhead", e.detail || 9)} />
 
     <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
     <MaterialDropdown label="SongBeamer translation" options={[{value: "textboxes", label: "Textboxes — separate item per language (bilingual)"}, {value: "multiline", label: "MultiLine — languages interleaved in one textbox (legacy)"}]} value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"} on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)} />

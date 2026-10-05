@@ -10,6 +10,7 @@ export type CTAuthData = {
     domain: string
     clientId?: string
     clientSecret?: string
+    weeksBack?: number
     sngFolder?: string
     sngTranslationMethod?: "multiline" | "textboxes"
     weeksAhead?: number
