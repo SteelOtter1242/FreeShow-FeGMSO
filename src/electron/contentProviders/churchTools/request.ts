@@ -697,8 +697,23 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     const params: Record<string, string> = { from, to, include: "eventFiles" }
     if (serviceId) params.serviceId = String(serviceId)
 
-    const eventsResult = await ctGet(domain, token, "events", params)
-    const events: any[] = eventsResult?.data ?? []
+    let eventsResult = await ctGet(domain, token, "events", params)
+    let events: any[] = eventsResult?.data ?? []
+
+    // Date-scoped sync can miss services around midnight/timezone boundaries.
+    // Retry once with a wider range before giving up.
+    if (!events.length && (fromOverride || toOverride)) {
+        const fallbackFromDate = new Date(`${from}T00:00:00Z`)
+        const fallbackToDate = new Date(`${to}T00:00:00Z`)
+        fallbackFromDate.setDate(fallbackFromDate.getDate() - 7)
+        fallbackToDate.setDate(fallbackToDate.getDate() + 7)
+        const fallbackFrom = fallbackFromDate.toISOString().slice(0, 10)
+        const fallbackTo = fallbackToDate.toISOString().slice(0, 10)
+        const fallbackParams: Record<string, string> = { ...params, from: fallbackFrom, to: fallbackTo }
+        eventsResult = await ctGet(domain, token, "events", fallbackParams)
+        events = eventsResult?.data ?? []
+        if (events.length) sendToMain(ToMain.TOAST, `ChurchTools: no exact date match; synced from ${fallbackFrom} to ${fallbackTo}`)
+    }
 
     if (!events.length) {
         if (fromOverride || toOverride) {
@@ -730,7 +745,6 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
 
             const agendaResult = await ctGet(domain, token, `events/${eventId}/agenda`, { include: "songs" })
             const rawItems: any[] = agendaResult?.data?.attributes?.items ?? agendaResult?.data?.items ?? []
-            if (!rawItems.length) return
 
             const sortedItems = [...rawItems].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
@@ -808,6 +822,17 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
                     }
                     projectItems.push({ type: "section", id: uid(5), name: `📎 ${att.name}`, notes: att.localPath, scheduleLength: 0 })
                 }
+            }
+
+            if (!projectItems.length) {
+                const infoNote = [
+                    "No agenda items or supported attachments were imported for this service.",
+                    "This can happen when the service has no agenda data or your API account lacks required permissions.",
+                    `Event ID: ${eventId}`
+                ].join("\n")
+                const { showId, show } = buildHeaderShow(`ChurchTools: empty service (${eventName})`, infoNote, dateLabel)
+                shows.push({ id: showId, ...show })
+                projectItems.push({ type: "show", id: showId, scheduleLength: 0 })
             }
 
             if (projectItems.length) {

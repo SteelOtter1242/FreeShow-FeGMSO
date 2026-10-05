@@ -1156,9 +1156,12 @@ const clickActions = {
             return
         }
 
-        const from = fromDate.toISOString().slice(0, 10)
+        // Use a small buffer around the selected day to handle timezone/date-boundary mismatches.
+        const fromDateBuffered = new Date(fromDate.getTime())
+        fromDateBuffered.setDate(fromDateBuffered.getDate() - 1)
+        const from = fromDateBuffered.toISOString().slice(0, 10)
         const toDate = new Date(fromDate.getTime())
-        toDate.setDate(toDate.getDate() + 1)
+        toDate.setDate(toDate.getDate() + 2)
         const to = toDate.toISOString().slice(0, 10)
 
         const providerData = get(contentProviderData)?.churchtools || {}
@@ -1177,7 +1180,7 @@ const clickActions = {
                 url: (providerData.url || "").trim() || undefined
             }
         })
-        newToast(`ChurchTools sync started for ${from}`)
+        newToast(`ChurchTools sync started for ${from} to ${to}`)
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {
