@@ -18,7 +18,6 @@ import { ctGetAccess } from "./connect"
 const ITEM_STYLE = "left:50px;top:120px;width:1820px;height:840px;"
 const ITEM_STYLE_TOP    = "left:50px;top:80px;width:1820px;height:430px;"
 const ITEM_STYLE_BOTTOM = "left:50px;top:530px;width:1820px;height:430px;"
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 const SNG_SECTION_RE = /(?:^|\n)--(?:-|A)?\s*\n/
 
@@ -691,10 +690,20 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     }
 
     const { domain, access_token: token } = access
-    const weeks = Math.max(1, access.weeksAhead ?? 2)
     const now = new Date()
-    const computedFrom = now.toISOString().slice(0, 10)
-    const computedTo = new Date(now.getTime() + weeks * ONE_WEEK_MS).toISOString().slice(0, 10)
+    const computedFromDate = new Date(now)
+    computedFromDate.setUTCMonth(computedFromDate.getUTCMonth() - 1)
+
+    // Keep user-configured weeksAhead as an optional extension, but never narrower than 3 months ahead.
+    const configuredWeeks = Math.max(0, access.weeksAhead ?? 0)
+    const configuredFutureDays = configuredWeeks * 7
+    const minimumFutureDays = 92
+    const futureDays = Math.max(minimumFutureDays, configuredFutureDays)
+    const computedToDate = new Date(now)
+    computedToDate.setUTCDate(computedToDate.getUTCDate() + futureDays)
+
+    const computedFrom = computedFromDate.toISOString().slice(0, 10)
+    const computedTo = computedToDate.toISOString().slice(0, 10)
     const from = fromOverride || computedFrom
     const to = toOverride || computedTo
 
@@ -734,7 +743,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
         if (fromOverride || toOverride) {
             sendToMain(ToMain.TOAST, `ChurchTools: no services found from ${from} to ${to}`)
         } else {
-            sendToMain(ToMain.TOAST, "No upcoming ChurchTools services found in the next 8 weeks")
+            sendToMain(ToMain.TOAST, "No ChurchTools services found in the default sync window (1 month back, 3 months ahead)")
         }
         return
     }
