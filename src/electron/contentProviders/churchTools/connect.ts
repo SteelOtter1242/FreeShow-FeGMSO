@@ -325,7 +325,10 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     if (!access && interactive) {
         access = await authenticate(baseDomain, clientId, clientSecret)
     }
-    if (!access) return null
+    if (!access) {
+        if (!interactive) sendToMain(ToMain.TOAST, "ChurchTools sync skipped: not connected. Connect ChurchTools in Settings first.")
+        return null
+    }
 
     const merged = mergeSettings({ ...access, domain: baseDomain, clientId, clientSecret }, data)
     saveAccess(merged)

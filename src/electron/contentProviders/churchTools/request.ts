@@ -684,7 +684,10 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
 
 export async function ctLoadServices(serviceId?: number, fromOverride?: string, toOverride?: string): Promise<void> {
     const access = ctGetAccess()
-    if (!access?.domain || !access?.access_token) return
+    if (!access?.domain || !access?.access_token) {
+        sendToMain(ToMain.TOAST, "ChurchTools sync skipped: missing connection or access token")
+        return
+    }
 
     const { domain, access_token: token } = access
     const weeks = Math.max(1, access.weeksAhead ?? 2)
@@ -850,7 +853,7 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     )
 
     if (!projects.length) {
-        sendToMain(ToMain.TOAST, "ChurchTools: no services with agenda items found")
+        sendToMain(ToMain.TOAST, `ChurchTools: ${events.length} service(s) found, but no importable project items were created`)
         return
     }
 
