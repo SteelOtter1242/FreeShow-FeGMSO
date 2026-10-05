@@ -1448,6 +1448,9 @@
         "save_all": "Speichern und alle aktualisieren",
         "add_slides_from_show": "Folien von Show einfügen"
     },
+    "ct": {
+        "import_day": "ChurchTools Import (Tag)"
+    },
     "scripture": {
         "collections": "Sammlungen",
         "bibles_section": "Bibeln",

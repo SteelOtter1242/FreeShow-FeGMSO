@@ -55,7 +55,7 @@
                     {@const isSyncEvent = typeof event.origin === "string" && event.origin.startsWith("ct_cal_")}
 
                     <div
-                        class="event context {isSyncEvent ? '#event_sync' : '#event'}"
+                        class="event context {isSyncEvent ? '#event_ct_import' : '#event'}"
                         style="color: {event.color || 'unset'}"
                         id={event.id}
                         data-title={customName}

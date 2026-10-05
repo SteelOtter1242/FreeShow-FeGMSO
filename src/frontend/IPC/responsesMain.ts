@@ -344,14 +344,6 @@ export const mainResponses: MainResponses = {
             return c
         })
 
-        // Write provider-specific defaults that the UI shows but doesn't save until user interacts
-        if (data.providerId === "churchtools") {
-            contentProviderData.update((d) => {
-                if (!d.churchtools?.songOrigin) d.churchtools = { ...(d.churchtools || {}), songOrigin: "local" }
-                return d
-            })
-        }
-
         if (data.isFirstConnection) {
             newToast("main.finished")
 

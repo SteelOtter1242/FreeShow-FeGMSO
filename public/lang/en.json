@@ -1570,6 +1570,9 @@
         "calendars": "Calendars",
         "delete_confirmation": "Are you sure you want to delete all events from this calendar?"
     },
+    "ct": {
+        "import_day": "ChurchTools Import (day)"
+    },
     "scripture": {
         "collections": "Collections",
         "bibles_section": "Bibles",

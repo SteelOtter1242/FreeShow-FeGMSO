@@ -1533,6 +1533,9 @@
         "calendars": "Calendriers",
         "delete_confirmation": "Supprimer tous les événements de ce calendrier ?"
     },
+    "ct": {
+        "import_day": "ChurchTools import (jour)"
+    },
     "scripture": {
         "collections": "Collections",
         "bibles_section": "Bibles",

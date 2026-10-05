@@ -196,7 +196,7 @@ export const contextMenuItems: { [key: string]: ContextMenuItem } = {
     // LIVE
     startup_activate: { label: "actions.activate_on_startup", icon: "startup" },
     recording: { label: "actions.start_recording", icon: "record", iconColor: "#ff7a7a" },
-    sync_event_date: { label: "Sync from CT", icon: "cloud_sync" },
+    ct_import_day: { label: "ct.import_day", icon: "cloud_sync" },
     // OVERLAYS
     lock_to_output: { label: "context.lock_to_output", icon: "locked", iconColor: "#ff5454" },
     place_under_slide: { label: "context.place_under_slide", icon: "under", iconColor: "#d497ff" },
@@ -422,7 +422,7 @@ export const contextMenuLayouts: { [key: string]: string[] } = {
 
     // CALENDAR
     event: ["GROUP_edit", "duplicate", "delete", "delete_all"],
-    event_sync: ["GROUP_edit", "duplicate", "delete", "delete_all", "SEPARATOR", "sync_event_date"],
+    event_ct_import: ["GROUP_edit", "duplicate", "delete", "delete_all", "SEPARATOR", "ct_import_day"],
 
     // SETTINGS
     theme: ["GROUP_rename_only", "duplicate", "delete", "SEPARATOR", "export", "SEPARATOR", "reset_theme"], // "GROUP_rename"

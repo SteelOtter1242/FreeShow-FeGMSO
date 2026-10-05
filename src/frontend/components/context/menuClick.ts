@@ -1140,7 +1140,7 @@ const clickActions = {
             return a
         })
     },
-    sync_event_date: (obj: ObjData) => {
+    event_ct_import: (obj: ObjData) => {
         const eventId = obj.contextElem?.id || ""
         const event = get(events)?.[eventId]
         if (!event) return
@@ -1181,7 +1181,7 @@ const clickActions = {
                 url: (providerData.url || "").trim() || undefined
             }
         })
-        newToast(`ChurchTools sync started for ${selectedDay}`)
+        newToast(`ChurchTools import started for ${selectedDay}`)
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {
