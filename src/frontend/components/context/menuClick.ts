@@ -37,6 +37,7 @@ import {
     audioFolders,
     categories,
     cloudSyncData,
+    contentProviderData,
     colorbars,
     currentOutputSettings,
     drawer,
@@ -1138,6 +1139,44 @@ const clickActions = {
             })
             return a
         })
+    },
+    sync_event_date: (obj: ObjData) => {
+        const eventId = obj.contextElem?.id || ""
+        const event = get(events)?.[eventId]
+        if (!event) return
+
+        if (!event.origin?.startsWith("ct_cal_")) {
+            newToast("This calendar event is not from ChurchTools sync")
+            return
+        }
+
+        const fromDate = new Date(event.from)
+        if (isNaN(fromDate.getTime())) {
+            newToast("Could not read the selected event date")
+            return
+        }
+
+        const from = fromDate.toISOString().slice(0, 10)
+        const toDate = new Date(fromDate.getTime())
+        toDate.setDate(toDate.getDate() + 1)
+        const to = toDate.toISOString().slice(0, 10)
+
+        const providerData = get(contentProviderData)?.churchtools || {}
+        sendMain(Main.PROVIDER_LOAD_SERVICES, {
+            providerId: "churchtools",
+            cloudOnly: false,
+            data: {
+                from,
+                to,
+                sngFolder: (providerData.sngFolder || "").trim() || undefined,
+                sngTranslationMethod: providerData.sngTranslationMethod || undefined,
+                weeksAhead: providerData.weeksAhead || undefined,
+                clientId: (providerData.clientId || "").trim() || undefined,
+                clientSecret: providerData.clientSecret || undefined,
+                url: (providerData.url || "").trim() || undefined
+            }
+        })
+        newToast(`ChurchTools sync started for ${from}`)
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {

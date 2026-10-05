@@ -488,6 +488,18 @@ function stripTypePrefix(title: string): string {
     return title.replace(/^(?:song|lied|lob|worship|musik)\W+/i, "").trim()
 }
 
+function buildSongImportErrorLyrics(title: string, ccli: string, reason: string): string {
+    const ccliLine = ccli ? `CCLI: ${ccli}` : "CCLI: unknown"
+    return [
+        "[Verse]",
+        "SYNC ERROR: ChurchTools song could not be resolved to a local FreeShow song.",
+        `Song: ${title}`,
+        ccliLine,
+        `Reason: ${reason}`,
+        "Action: Import SongBeamer songs into FreeShow first, then right-click the related calendar event and choose 'Sync from CT'."
+    ].join("\n")
+}
+
 async function lookupSng(sngIndex: { byTitle: Map<string, string>; byCcli: Map<string, string> }, title: string, ccli?: string): Promise<{ lyrics: string; raw: string; langCount: number; sngMeta: ReturnType<typeof parseSngMeta> } | null> {
     // CCLI match is the most reliable
     let sngPath = ccli ? sngIndex.byCcli.get(ccli.trim()) : undefined
@@ -565,13 +577,17 @@ async function processAgendaItem(domain: string, token: string, item: any, _sngI
             const resolvedTitle = meta.title || embeddedTitle || songTitle || "Song"
             const resolvedCcli  = meta.ccli  || embeddedCcli
 
-            // Keep the provider song as a metadata stub. Frontend sync logic will prefer existing
-            // local shows with the same title when songOrigin is "local".
-            return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", "")
+            // Keep the provider song in an explicit error state until local SongBeamer migration
+            // provides a matching show title that can be used instead.
+            const errorLyrics = buildSongImportErrorLyrics(resolvedTitle, resolvedCcli, "No matching local migrated song found")
+            return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", errorLyrics)
         }
 
         // Song not linked in CT database — still create a lightweight local-reference song stub.
-        if (songTitle) return buildSongShow(songTitle, "", "", "", "", "")
+        if (songTitle) {
+            const errorLyrics = buildSongImportErrorLyrics(songTitle, "", "ChurchTools item is not linked to a ChurchTools song")
+            return buildSongShow(songTitle, "", "", "", "", errorLyrics)
+        }
     }
 
     if (!title) return null
@@ -650,15 +666,17 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-export async function ctLoadServices(serviceId?: number): Promise<void> {
+export async function ctLoadServices(serviceId?: number, fromOverride?: string, toOverride?: string): Promise<void> {
     const access = ctGetAccess()
     if (!access?.domain || !access?.access_token) return
 
     const { domain, access_token: token } = access
     const weeks = Math.max(1, access.weeksAhead ?? 2)
     const now = new Date()
-    const from = now.toISOString().slice(0, 10)
-    const to = new Date(now.getTime() + weeks * ONE_WEEK_MS).toISOString().slice(0, 10)
+    const computedFrom = now.toISOString().slice(0, 10)
+    const computedTo = new Date(now.getTime() + weeks * ONE_WEEK_MS).toISOString().slice(0, 10)
+    const from = fromOverride || computedFrom
+    const to = toOverride || computedTo
 
     const params: Record<string, string> = { from, to, include: "eventFiles" }
     if (serviceId) params.serviceId = String(serviceId)

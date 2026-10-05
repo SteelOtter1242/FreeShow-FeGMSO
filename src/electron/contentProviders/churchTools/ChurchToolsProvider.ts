@@ -54,15 +54,15 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
         return null // all requests go through request.ts directly
     }
 
-    async loadServices(data?: { url?: string; serviceId?: number; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string }): Promise<void> {
+    async loadServices(data?: { url?: string; serviceId?: number; from?: string; to?: string; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string }): Promise<void> {
         const connected = await this.connect("services", data)
         if (!connected) return
-        return ctLoadServices(data?.serviceId)
+        return ctLoadServices(data?.serviceId, data?.from, data?.to)
     }
 
-    async startupLoad(_scope: CTScopes, data?: { serviceId?: number; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string; url?: string }): Promise<void> {
+    async startupLoad(_scope: CTScopes, data?: { serviceId?: number; from?: string; to?: string; sngFolder?: string; sngTranslationMethod?: string; weeksAhead?: number; clientId?: string; clientSecret?: string; url?: string }): Promise<void> {
         ctInitialize()
-        await ctStartupLoad(() => ctLoadServices(data?.serviceId), data)
+        await ctStartupLoad(() => ctLoadServices(data?.serviceId, data?.from, data?.to), data)
     }
 
     protected handleAuthCallback(_req: any, _res: any): void {}
