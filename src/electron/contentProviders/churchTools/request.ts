@@ -639,7 +639,7 @@ function buildICalContent(appointments: any[], calName: string, domain: string):
     return lines.join("\r\n")
 }
 
-async function ctLoadCalendarEvents(domain: string, token: string, from: string, to: string): Promise<void> {
+async function ctLoadCalendarEvents(domain: string, token: string, from: string, to: string): Promise<number> {
     let appointments: any[] = []
 
     // CT requires calendar_ids[] — fetch all calendars first, then build URL with IDs
@@ -659,7 +659,7 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
         }
     }
 
-    if (!appointments.length) return
+    if (!appointments.length) return 0
 
     // Group by calendar so each gets its own color in FreeShow
     const calMap = new Map<string, { name: string; items: any[] }>()
@@ -677,6 +677,7 @@ async function ctLoadCalendarEvents(domain: string, token: string, from: string,
     }))
 
     sendToMain(ToMain.IMPORT2, { channel: "calendar", data: calendarData as any })
+    return appointments.length
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
@@ -704,6 +705,15 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     const to = toOverride || computedTo
 
     console.info(`[CT-SYNC] load start serviceId=${serviceId ?? "(all)"} from=${from} to=${to} domain=${domain}`)
+
+    // Default sync path (manual + startup) updates calendar only.
+    // Project imports are intentionally restricted to the explicit day-import action.
+    if (!importProjectsOnly) {
+        const appointmentCount = await ctLoadCalendarEvents(domain, token, from, to)
+        console.info(`[CT-SYNC] calendar sync only imported appointments=${appointmentCount}`)
+        if (!appointmentCount) sendToMain(ToMain.TOAST, `ChurchTools: no calendar events found from ${from} to ${to}`)
+        return
+    }
 
     const params: Record<string, string> = { from, to }
     if (serviceId) params.serviceId = String(serviceId)
@@ -883,11 +893,5 @@ export async function ctLoadServices(serviceId?: number, fromOverride?: string, 
     sendToMain(ToMain.TOAST, `CT: ${projects.length} services | ${sngSummary} | evKeys:${eventKeys}`)
     sendToMain(ToMain.PROVIDER_PROJECTS, { providerId: "churchtools", categoryName: "ChurchTools", shows, projects })
 
-    if (importProjectsOnly) {
-        console.info("[CT-SYNC] calendar import skipped (project-only sync)")
-        return
-    }
-
-    // Import CT calendar appointments into the FreeShow calendar widget
-    await ctLoadCalendarEvents(domain, token, from, to)
+    console.info("[CT-SYNC] calendar import skipped (project-only sync)")
 }
