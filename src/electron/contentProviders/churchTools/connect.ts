@@ -348,8 +348,9 @@ export function ctGetAccess(): CTAuthData {
     return CT_ACCESS ?? (getContentProviderAccess("churchtools", CT_SCOPE) as CTAuthData)
 }
 
-export async function ctConnect(data?: CTConnectData, options: { interactive?: boolean } = {}): Promise<CTAuthData> {
+export async function ctConnect(data?: CTConnectData, options: { interactive?: boolean; requiredScope?: string } = {}): Promise<CTAuthData> {
     const interactive = options.interactive !== false
+    const requiredScope = (options.requiredScope || "").trim()
     const stored = (getContentProviderAccess("churchtools", CT_SCOPE) as CTAuthData) || null
     const inputDomain = data?.url?.trim() ? normalizeDomain(data.url) : ""
 
@@ -387,15 +388,15 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
         if (verified === "invalid") access = null
     }
 
-    if (access && OAUTH_SCOPE && !hasRequiredScope(access.scope, OAUTH_SCOPE)) {
-        console.warn(`[CT-SYNC] token missing required OAuth scope=${OAUTH_SCOPE}; token_scope=${access.scope || "(none)"}`)
+    if (access && requiredScope && !hasRequiredScope(access.scope, requiredScope)) {
+        console.warn(`[CT-SYNC] token missing required OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"}`)
         if (interactive) {
             // Force an interactive re-auth so ChurchTools can issue a token with the required scope.
             access = null
         } else {
             sendToMain(
                 ToMain.TOAST,
-                `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${OAUTH_SCOPE}'. Reconnect ChurchTools in Settings.`
+                `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${requiredScope}'. Reconnect ChurchTools in Settings.`
             )
             return null
         }
@@ -408,6 +409,15 @@ export async function ctConnect(data?: CTConnectData, options: { interactive?: b
     if (!access) {
         console.warn(`[CT-SYNC] ctConnect failed interactive=${interactive}`)
         if (!interactive) sendToMain(ToMain.TOAST, "ChurchTools sync skipped: not connected. Connect ChurchTools in Settings first.")
+        return null
+    }
+
+    if (requiredScope && !hasRequiredScope(access.scope, requiredScope)) {
+        console.warn(`[CT-SYNC] token missing required OAuth scope=${requiredScope}; token_scope=${access.scope || "(none)"}`)
+        sendToMain(
+            ToMain.TOAST,
+            `ChurchTools sync blocked: token scope is '${access.scope || "(none)"}', required '${requiredScope}'. Reconnect ChurchTools in Settings.`
+        )
         return null
     }
 

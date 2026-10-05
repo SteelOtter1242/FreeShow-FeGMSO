@@ -20,6 +20,7 @@ type CTConnectPayload = {
     weeksAhead?: number
     clientId?: string
     clientSecret?: string
+    requiredScope?: string
     interactive?: boolean
 }
 
@@ -70,7 +71,7 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
                 clientSecret: data.clientSecret
             }
             : undefined
-        const result = await ctConnect(connectData, { interactive })
+        const result = await ctConnect(connectData, { interactive, requiredScope: data?.requiredScope })
         this.access = result as CTAuthDataExport | null
         return this.access
     }

@@ -1156,13 +1156,11 @@ const clickActions = {
             return
         }
 
-        // Use a small buffer around the selected day to handle timezone/date-boundary mismatches.
-        const fromDateBuffered = new Date(fromDate.getTime())
-        fromDateBuffered.setDate(fromDateBuffered.getDate() - 1)
-        const from = fromDateBuffered.toISOString().slice(0, 10)
-        const toDate = new Date(fromDate.getTime())
-        toDate.setDate(toDate.getDate() + 2)
-        const to = toDate.toISOString().slice(0, 10)
+        // Sync only the selected day from the calendar event.
+        const pad = (n: number) => String(n).padStart(2, "0")
+        const selectedDay = `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-${pad(fromDate.getDate())}`
+        const from = selectedDay
+        const to = selectedDay
 
         const providerData = get(contentProviderData)?.churchtools || {}
         sendMain(Main.PROVIDER_LOAD_SERVICES, {
@@ -1171,6 +1169,7 @@ const clickActions = {
             data: {
                 interactive: false,
                 importProjectsOnly: true,
+                requiredScope: "api",
                 from,
                 to,
                 sngFolder: (providerData.sngFolder || "").trim() || undefined,
@@ -1182,7 +1181,7 @@ const clickActions = {
                 url: (providerData.url || "").trim() || undefined
             }
         })
-        newToast(`ChurchTools sync started for ${from} to ${to}`)
+        newToast(`ChurchTools sync started for ${selectedDay}`)
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {
