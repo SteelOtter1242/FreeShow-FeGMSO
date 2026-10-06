@@ -354,6 +354,18 @@
             <MaterialNumberInput label="settings.weeks_back" value={$contentProviderData.churchtools?.calWeeksBack ?? 3} on:change={(e) => updateProvider("churchtools", "calWeeksBack", e.detail || 3)} />
             <MaterialNumberInput label="settings.weeks_ahead" value={$contentProviderData.churchtools?.calWeeksAhead ?? 9} on:change={(e) => updateProvider("churchtools", "calWeeksAhead", e.detail || 9)} />
             <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
+            <MaterialTextInput label="SongBeamer category" placeholder="churchtools" value={$contentProviderData.churchtools?.sngCategory || ""} on:change={(e) => updateProvider("churchtools", "sngCategory", e.detail)} />
+            <MaterialDropdown label="SongBeamer encoding" options={[{ value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "utf8"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
+            <MaterialDropdown
+                label="SongBeamer translation"
+                options={[
+                    { value: "textboxes", label: "Textboxes — separate item per language (bilingual)" },
+                    { value: "multiline", label: "MultiLine — languages interleaved in one textbox" },
+                    { value: "layouts", label: "Layouts — one layout per language" }
+                ]}
+                value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"}
+                on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)}
+            />
         </div>
     </InputRow>
 {:else if $providerConnections.planningcenter}
@@ -444,7 +456,18 @@
     <MaterialNumberInput label="settings.weeks_ahead" value={$contentProviderData.churchtools?.calWeeksAhead ?? 9} on:change={(e) => updateProvider("churchtools", "calWeeksAhead", e.detail || 9)} />
 
     <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
-    <MaterialDropdown label="SongBeamer translation" options={[{value: "textboxes", label: "Textboxes — separate item per language (bilingual)"}, {value: "multiline", label: "MultiLine — languages interleaved in one textbox (legacy)"}]} value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"} on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)} />
+    <MaterialTextInput label="SongBeamer category" placeholder="churchtools" value={$contentProviderData.churchtools?.sngCategory || ""} on:change={(e) => updateProvider("churchtools", "sngCategory", e.detail)} />
+    <MaterialDropdown label="SongBeamer encoding" options={[{ value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "utf8"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
+    <MaterialDropdown
+        label="SongBeamer translation"
+        options={[
+            { value: "textboxes", label: "Textboxes — separate item per language (bilingual)" },
+            { value: "multiline", label: "MultiLine — languages interleaved in one textbox" },
+            { value: "layouts", label: "Layouts — one layout per language" }
+        ]}
+        value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"}
+        on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)}
+    />
 {:else if $providerConnections.onstage}
     <!-- OnStage connected -->
     <Title label="Content Provider: OnStage" icon="list" />

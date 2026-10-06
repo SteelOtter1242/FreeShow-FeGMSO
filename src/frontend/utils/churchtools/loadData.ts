@@ -4,7 +4,9 @@ type ChurchToolsProviderData = {
     clientSecret?: string
     serviceId?: number
     sngFolder?: string
-    sngTranslationMethod?: "multiline" | "textboxes"
+    sngCategory?: string
+    sngEncoding?: "utf8" | "latin1"
+    sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
     calWeeksBack?: number
     calWeeksAhead?: number
 }
@@ -33,6 +35,8 @@ export function buildChurchToolsLoadData(providerData: ChurchToolsProviderData =
         to: overrides.to,
         serviceId: overrides.serviceId ?? providerData.serviceId ?? undefined,
         sngFolder: trimOrUndefined(providerData.sngFolder),
+        sngCategory: trimOrUndefined(providerData.sngCategory),
+        sngEncoding: providerData.sngEncoding || undefined,
         sngTranslationMethod: providerData.sngTranslationMethod || undefined,
         calWeeksBack: providerData.calWeeksBack ?? undefined,
         calWeeksAhead: providerData.calWeeksAhead ?? undefined,

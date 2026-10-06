@@ -15,7 +15,9 @@ export type { CTScopes } from "./types"
 type CTConnectPayload = {
     url?: string
     sngFolder?: string
-    sngTranslationMethod?: "multiline" | "textboxes"
+    sngCategory?: string
+    sngEncoding?: "utf8" | "latin1"
+    sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
     calWeeksBack?: number
     calWeeksAhead?: number
     clientId?: string
@@ -64,6 +66,8 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
             ? {
                 url: data.url,
                 sngFolder: data.sngFolder,
+                sngCategory: data.sngCategory,
+                sngEncoding: data.sngEncoding,
                 sngTranslationMethod: data.sngTranslationMethod,
                 calWeeksBack: data.calWeeksBack,
                 calWeeksAhead: data.calWeeksAhead,
@@ -97,6 +101,8 @@ export class ChurchToolsProvider extends ContentProvider<CTScopes, CTAuthDataExp
             ? {
                 url: data.url,
                 sngFolder: data.sngFolder,
+                sngCategory: data.sngCategory,
+                sngEncoding: data.sngEncoding,
                 sngTranslationMethod: data.sngTranslationMethod,
                 calWeeksBack: data.calWeeksBack,
                 calWeeksAhead: data.calWeeksAhead,

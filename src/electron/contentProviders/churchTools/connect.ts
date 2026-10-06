@@ -24,7 +24,9 @@ const AUTH_FLOW_TIMEOUT_MS = 10 * 60 * 1000
 type CTConnectData = {
     url?: string
     sngFolder?: string
-    sngTranslationMethod?: "multiline" | "textboxes"
+    sngCategory?: string
+    sngEncoding?: "utf8" | "latin1"
+    sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
     calWeeksBack?: number
     calWeeksAhead?: number
     clientId?: string
@@ -142,6 +144,8 @@ function hasRequiredScope(scope: string | undefined, requiredScope: string): boo
 function mergeSettings(access: NonNullable<CTAuthData>, data?: CTConnectData): NonNullable<CTAuthData> {
     const updated = { ...access }
     if (data?.sngFolder !== undefined) updated.sngFolder = data.sngFolder?.trim() || undefined
+    if (data?.sngCategory !== undefined) updated.sngCategory = data.sngCategory?.trim() || undefined
+    if (data?.sngEncoding !== undefined) updated.sngEncoding = data.sngEncoding
     if (data?.sngTranslationMethod !== undefined) updated.sngTranslationMethod = data.sngTranslationMethod
     if (data?.calWeeksBack !== undefined) updated.calWeeksBack = data.calWeeksBack
     if (data?.calWeeksAhead !== undefined) updated.calWeeksAhead = data.calWeeksAhead

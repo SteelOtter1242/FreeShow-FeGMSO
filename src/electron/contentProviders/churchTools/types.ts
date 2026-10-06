@@ -12,6 +12,8 @@ export type CTAuthData = {
     clientSecret?: string
     calWeeksBack?: number
     sngFolder?: string
-    sngTranslationMethod?: "multiline" | "textboxes"
+    sngCategory?: string
+    sngEncoding?: "utf8" | "latin1"
+    sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
     calWeeksAhead?: number
 } | null
