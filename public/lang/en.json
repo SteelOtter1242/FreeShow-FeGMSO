@@ -1414,6 +1414,8 @@
         "clear_media_when_finished": "Clear media when finished",
         "disable_presenter_controller_keys": "Disable presenter controller keys",
         "default_project_name": "Default project name",
+        "weeks_back": "Weeks back",
+        "weeks_ahead": "Weeks ahead",
         "audio_fade_duration": "Audio fade duration",
         "audio_crossfade": "Audio crossfade",
         "playlist_volume": "Playlist volume",

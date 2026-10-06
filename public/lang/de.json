@@ -1316,6 +1316,8 @@
         "clear_media_when_finished": "Medien nach der Wiedergabe freigeben",
         "disable_presenter_controller_keys": "Presenter Controller Tasten deaktivieren",
         "default_project_name": "Standard Projektname",
+        "weeks_back": "Wochen zurück",
+        "weeks_ahead": "Wochen voraus",
         "audio_fade_duration": "Dauer der Audio Überblendung",
         "audio_crossfade": "Audio-Überblendung",
         "playlist_volume": "Playlist-Lautstärke",

@@ -25,8 +25,8 @@ type CTConnectData = {
     url?: string
     sngFolder?: string
     sngTranslationMethod?: "multiline" | "textboxes"
-    weeksBack?: number
-    weeksAhead?: number
+    calWeeksBack?: number
+    calWeeksAhead?: number
     clientId?: string
     clientSecret?: string
 }
@@ -143,8 +143,8 @@ function mergeSettings(access: NonNullable<CTAuthData>, data?: CTConnectData): N
     const updated = { ...access }
     if (data?.sngFolder !== undefined) updated.sngFolder = data.sngFolder?.trim() || undefined
     if (data?.sngTranslationMethod !== undefined) updated.sngTranslationMethod = data.sngTranslationMethod
-    if (data?.weeksBack !== undefined) updated.weeksBack = data.weeksBack
-    if (data?.weeksAhead !== undefined) updated.weeksAhead = data.weeksAhead
+    if (data?.calWeeksBack !== undefined) updated.calWeeksBack = data.calWeeksBack
+    if (data?.calWeeksAhead !== undefined) updated.calWeeksAhead = data.calWeeksAhead
     if (data?.clientId !== undefined) updated.clientId = data.clientId?.trim() || DEFAULT_CT_CLIENT_ID
     if (data?.clientSecret !== undefined) updated.clientSecret = data.clientSecret || ""
     return updated

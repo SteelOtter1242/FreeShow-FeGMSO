@@ -1389,6 +1389,8 @@
         "clear_media_when_finished": "Effacer le média une fois terminé",
         "disable_presenter_controller_keys": "Désactiver les touches du contrôleur de présentateur",
         "default_project_name": "Nom de projet par défaut",
+        "weeks_back": "Semaines en arrière",
+        "weeks_ahead": "Semaines à venir",
         "audio_fade_duration": "Durée du fondu audio",
         "audio_crossfade": "Fondu enchaîné audio",
         "playlist_volume": "Volume de la playlist",

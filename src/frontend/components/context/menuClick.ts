@@ -37,7 +37,6 @@ import {
     audioFolders,
     categories,
     cloudSyncData,
-    contentProviderData,
     colorbars,
     currentOutputSettings,
     drawer,
@@ -119,6 +118,7 @@ import { _show } from "../helpers/shows"
 import { getMenuTagId, openTagManager, toggleSelectionTags, toggleTagFilter } from "../helpers/tags"
 import { clearSlide } from "../output/clear"
 import { defaultThemes } from "../settings/tabs/defaultThemes"
+import { importChurchToolsEventDay } from "../../utils/churchtools/importDay"
 import { activeProject } from "./../../stores"
 import type { ContextMenuItem } from "./contextMenus"
 
@@ -1140,48 +1140,8 @@ const clickActions = {
             return a
         })
     },
-    event_ct_import: (obj: ObjData) => {
-        const eventId = obj.contextElem?.id || ""
-        const event = get(events)?.[eventId]
-        if (!event) return
-
-        if (!event.origin?.startsWith("ct_cal_")) {
-            newToast("This calendar event is not from ChurchTools sync")
-            return
-        }
-
-        const fromDate = new Date(event.from)
-        if (isNaN(fromDate.getTime())) {
-            newToast("Could not read the selected event date")
-            return
-        }
-
-        // Sync only the selected day from the calendar event.
-        const pad = (n: number) => String(n).padStart(2, "0")
-        const selectedDay = `${fromDate.getFullYear()}-${pad(fromDate.getMonth() + 1)}-${pad(fromDate.getDate())}`
-        const from = selectedDay
-        const to = selectedDay
-
-        const providerData = get(contentProviderData)?.churchtools || {}
-        sendMain(Main.PROVIDER_LOAD_SERVICES, {
-            providerId: "churchtools",
-            cloudOnly: false,
-            data: {
-                interactive: false,
-                importProjectsOnly: true,
-                requiredScope: "api",
-                from,
-                to,
-                sngFolder: (providerData.sngFolder || "").trim() || undefined,
-                sngTranslationMethod: providerData.sngTranslationMethod || undefined,
-                weeksBack: providerData.weeksBack || undefined,
-                weeksAhead: providerData.weeksAhead || undefined,
-                clientId: (providerData.clientId || "").trim() || undefined,
-                clientSecret: providerData.clientSecret || undefined,
-                url: (providerData.url || "").trim() || undefined
-            }
-        })
-        newToast(`ChurchTools import started for ${selectedDay}`)
+    ct_import_day: (obj: ObjData) => {
+        importChurchToolsEventDay(obj.contextElem?.id || "")
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {

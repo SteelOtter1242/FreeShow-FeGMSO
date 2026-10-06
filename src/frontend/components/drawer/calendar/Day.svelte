@@ -52,10 +52,10 @@
                 {#each currentEvents as event}
                     {@const eventIcon = getEventIcon(event.type, { actionId: event.action?.id })}
                     {@const customName = type === "action" ? getActionName(event.action?.id, event.action?.data) : ""}
-                    {@const isSyncEvent = typeof event.origin === "string" && event.origin.startsWith("ct_cal_")}
+                    {@const isCTImportEvent = typeof event.origin === "string" && event.origin.startsWith("ct_cal_")}
 
                     <div
-                        class="event context {isSyncEvent ? '#event_ct_import' : '#event'}"
+                        class="event context {isCTImportEvent ? '#event_ct_import' : '#event'}"
                         style="color: {event.color || 'unset'}"
                         id={event.id}
                         data-title={customName}
