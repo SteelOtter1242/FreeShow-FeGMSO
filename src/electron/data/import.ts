@@ -16,6 +16,45 @@ import { decompressZip, decompressZipStream, isZip } from "./zip"
 
 type FileData = { content: Buffer | string | object; path?: string; name?: string; extension?: string }
 
+// Legacy SongBeamer files are often exported as Windows-1252 even when users select
+// Latin-1, so we remap the 0x80-0x9F range to preserve punctuation/symbols.
+const WIN1252: Record<number, string> = {
+    0x80: "\u20AC", 0x82: "\u201A", 0x83: "\u0192", 0x84: "\u201E", 0x85: "\u2026",
+    0x86: "\u2020", 0x87: "\u2021", 0x88: "\u02C6", 0x89: "\u2030", 0x8A: "\u0160",
+    0x8B: "\u2039", 0x8C: "\u0152", 0x8E: "\u017D", 0x91: "\u2018", 0x92: "\u2019",
+    0x93: "\u201C", 0x94: "\u201D", 0x95: "\u2022", 0x96: "\u2013", 0x97: "\u2014",
+    0x98: "\u02DC", 0x99: "\u2122", 0x9A: "\u0161", 0x9B: "\u203A", 0x9C: "\u0153",
+    0x9E: "\u017E", 0x9F: "\u0178"
+}
+
+function stripBom(text: string): string {
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
+
+function decodeSongbeamerBuffer(buffer: Buffer, encoding: BufferEncoding): string {
+    if (!buffer.length) return ""
+
+    // Handle UTF-8 BOM first so conversion is deterministic regardless of selected import mode.
+    if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+        return stripBom(buffer.slice(3).toString("utf-8"))
+    }
+
+    // Keep UTF-8 path strict when explicitly chosen by user import settings.
+    if (encoding === "utf8" || encoding === "utf-8") {
+        return stripBom(buffer.toString("utf-8"))
+    }
+
+    // "latin1" is treated as a practical legacy mode: decode single-byte text and
+    // repair cp1252 punctuation bytes that would otherwise become control characters.
+    const latin1Text = buffer.toString("latin1")
+    return stripBom(latin1Text.replace(/[\x80-\x9F]/g, (char) => WIN1252[char.charCodeAt(0)] ?? char))
+}
+
+async function readSongbeamerFile(filePath: string, encoding: BufferEncoding): Promise<string> {
+    const buffer = await readFileBufferAsync(filePath)
+    return decodeSongbeamerBuffer(buffer, encoding)
+}
+
 const specialImports = {
     powerpoint: async (files: string[]) => {
         sendToMain(ToMain.ALERT, "popup.importing")
@@ -119,7 +158,7 @@ export async function importShow(id: string, files: string[] | null, importSetti
         const encoding = importSettings.encoding
         const fileContents: any[] = []
         await asyncPool(20, files, async (file) => {
-            fileContents.push(await readFile(file, encoding))
+            fileContents.push(await readSongbeamerFile(file, encoding))
         })
         const custom = {
             files: fileContents,

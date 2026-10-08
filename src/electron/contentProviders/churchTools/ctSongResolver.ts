@@ -2,145 +2,38 @@ import fs from "fs"
 import path from "path"
 import { uid } from "uid"
 import type { Show, Slide, SlideData } from "../../../types/Show"
+import type { SongbeamerMetadata } from "../../../shared/songbeamer/songbeamerCore"
+import { applySongbeamerLayoutsToShow, convertSongbeamerFileToData, parseSongbeamerMetadata, stripSongbeamerBom } from "../../../shared/songbeamer/songbeamerCore"
 
-const ITEM_STYLE = "left:50px;top:120px;width:1820px;height:840px;"
-const ITEM_STYLE_TOP = "left:50px;top:80px;width:1820px;height:430px;"
-const ITEM_STYLE_BOTTOM = "left:50px;top:530px;width:1820px;height:430px;"
-
-const SNG_SECTION_RE = /(?:^|\n)--(?:-|A)?\s*\n/
-
-const SONGBEAMER_GROUPS: Record<string, string> = {
-    unbekannt: "", unbenannt: "", unknown: "",
-    intro: "Intro",
-    vers: "Verse", verse: "Verse", strophe: "Verse",
-    "pre-bridge": "Pre-Bridge", bridge: "Bridge",
-    misc: "Misc",
-    "pre-refrain": "Pre-Chorus", refrain: "Chorus",
-    "pre-chorus": "Pre-Chorus", chorus: "Chorus",
-    zwischenspiel: "Break", instrumental: "Break", interlude: "Break",
-    "pre-coda": "Pre-Outro", coda: "Outro", ending: "Outro", outro: "Outro",
-    teil: "Tag", part: "Tag", chor: "Tag", solo: "Tag"
-}
+const ITEM_STYLE = "top:88px;left:50px;height:904px;width:1820px;"
 
 export type CtSngIndex = { byTitle: Map<string, string>; byCcli: Map<string, string> }
 
 type CtGetFn = (domain: string, token: string, endpoint: string, params?: Record<string, string>) => Promise<any>
 
-function sngSlideTagToGroup(line: string): { group: string | null; groupNumber: number | null } {
-    if (line.charAt(0) === "#") return { group: null, groupNumber: null }
-    const parts = line.split(" ", 2)
-    const tag = parts[0].toLowerCase()
-    let groupNumber: number | null = parseInt(parts[1], 10)
-    if (parts.length < 2 || isNaN(groupNumber) || groupNumber < 1) groupNumber = null
-    return { group: SONGBEAMER_GROUPS[tag] ?? null, groupNumber }
-}
-
-function parseSngMeta(text: string): { title: string; author: string; composer: string; ccli: string; key: string; copyright: string } {
-    const meta = { title: "", author: "", composer: "", ccli: "", key: "", copyright: "" }
-    const headerSection = text.split(SNG_SECTION_RE)[0]
-    for (const line of headerSection.split("\n")) {
-        if (!line || line[0] !== "#") continue
-        const eq = line.indexOf("=")
-        if (eq < 2) continue
-        const val = line.slice(eq + 1).trim()
-        switch (line.slice(1, eq)) {
-            case "Title":
-                meta.title = val
-                break
-            case "Author":
-                meta.author = val
-                break
-            case "Melody":
-                meta.composer = val
-                break
-            case "Key":
-                meta.key = val
-                break
-            case "(c)":
-                meta.copyright = val
-                break
-            case "CCLI": {
-                let i = 0
-                while (i < val.length && val[i] >= "0" && val[i] <= "9") i++
-                meta.ccli = val.slice(0, i)
-                break
-            }
-        }
-    }
-    return meta
-}
-
-function parseLyrics(text: string): { label: string; lines: string[] }[] {
-    if (!text?.trim()) return []
-
-    const sections: { label: string; lines: string[] }[] = []
-    let label = "Verse"
-    let block: string[] = []
-    let labelUsed = false
-
-    function flush() {
-        const content = block.map((l) => l.trim()).filter(Boolean)
-        if (!content.length) return
-        sections.push({ label: labelUsed ? `${label} ${sections.filter((s) => s.label.startsWith(label)).length + 1}` : label, lines: content })
-        labelUsed = true
-        block = []
-    }
-
-    const chordLineRe = /^([A-G][b#]?(?:m|maj|min|sus|add|aug|dim|7|9|11|13)?\d*(?:\/[A-G][b#]?)?\s*){2,}$/i
-
-    for (const raw of text.split(/\r?\n/)) {
-        const line = raw.trim()
-        if (/^-{2,}$/.test(line)) continue
-        if (chordLineRe.test(line)) continue
-
-        const sectionMatch = line.match(/^\[(.+)\]$/)
-        if (sectionMatch) {
-            flush()
-            label = sectionMatch[1].trim()
-            labelUsed = false
-            continue
-        }
-
-        if (!line) {
-            flush()
-            continue
-        }
-
-        block.push(line)
-    }
-    flush()
-
-    return sections
-}
-
-function buildSongShow(title: string, author: string, ccli: string, key: string, copyright: string, lyrics: string): { showId: string; show: Show } {
-    const sections = parseLyrics(lyrics)
+function buildSongShow(title: string, author: string, ccli: string, key: string, copyright: string, lyrics: string, category = "churchtools"): { showId: string; show: Show } {
     const slides: { [id: string]: Slide } = {}
     const layout: SlideData[] = []
+    const lines = lyrics
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
 
-    if (!sections.length) {
-        const id = uid()
-        slides[id] = { group: title, color: null, settings: {}, notes: "", items: [{ style: ITEM_STYLE, lines: [{ align: "text-align:center;", text: [{ style: "font-size:80px;font-weight:bold;", value: title }] }] }] }
-        layout.push({ id })
-    } else {
-        sections.forEach(({ label, lines }) => {
-            const id = uid()
-            slides[id] = {
-                group: label,
-                globalGroup: label.toLowerCase().replace(/\s+\d+$/, "").trim(),
-                color: null,
-                settings: {},
-                notes: "",
-                items: [{ style: ITEM_STYLE, lines: lines.map((l) => ({ align: "", text: [{ style: "", value: l }] })) }]
-            }
-            layout.push({ id })
-        })
+    const id = uid()
+    slides[id] = {
+        group: title,
+        globalGroup: title.toLowerCase(),
+        color: null,
+        settings: {},
+        notes: "",
+        items: [{ style: ITEM_STYLE, lines: (lines.length ? lines : [title]).map((line) => ({ align: "", text: [{ style: "", value: line }] })) }]
     }
+    layout.push({ id })
 
     const layoutId = uid()
     const show: Show = {
         name: title,
-        category: "churchtools",
+        category,
         timestamps: { created: Date.now(), modified: null, used: null },
         meta: { title, author, CCLI: ccli, key, copyright },
         settings: { activeLayout: layoutId, template: null },
@@ -194,11 +87,11 @@ const WIN1252: Record<number, string> = {
 
 async function readSngFile(filePath: string): Promise<string> {
     const buf = await fs.promises.readFile(filePath)
-    if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return buf.slice(3).toString("utf-8")
+    if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return stripSongbeamerBom(buf.slice(3).toString("utf-8"))
     const header = buf.slice(0, 512).toString("latin1")
     const enc = header.match(/^#Encoding=(.+)$/im)?.[1]?.trim().toLowerCase() ?? ""
-    if (enc === "utf-8" || enc === "utf8") return buf.toString("utf-8")
-    return buf.toString("latin1").replace(/[\x80-\x9F]/g, (c) => WIN1252[c.charCodeAt(0)] ?? c)
+    if (enc === "utf-8" || enc === "utf8") return stripSongbeamerBom(buf.toString("utf-8"))
+    return stripSongbeamerBom(buf.toString("latin1").replace(/[\x80-\x9F]/g, (c) => WIN1252[c.charCodeAt(0)] ?? c))
 }
 
 export async function buildSngIndex(folderPath: string, onEmpty?: (message: string) => void): Promise<CtSngIndex> {
@@ -214,7 +107,7 @@ export async function buildSngIndex(folderPath: string, onEmpty?: (message: stri
                 if (!e.isFile() || !e.name.toLowerCase().endsWith(".sng")) return
                 try {
                     const raw = await readSngFile(full)
-                    const { title, ccli } = parseSngMeta(raw)
+                    const { title, ccli } = parseSongbeamerMetadata(raw)
                     if (title) byTitle.set(title.toLowerCase().trim(), full)
                     if (ccli) byCcli.set(ccli.trim(), full)
                     const filenameNum = e.name.match(/^(\d+)\s/)
@@ -237,112 +130,42 @@ export async function buildSngIndex(folderPath: string, onEmpty?: (message: stri
     return { byTitle, byCcli }
 }
 
-function sngToLyricsText(raw: string): string {
-    const sections = raw.split(SNG_SECTION_RE).slice(1)
-    return sections
-        .map((section) => {
-            const lines = section.split("\n").map((l) => l.trim()).filter(Boolean)
-            if (!lines.length) return ""
-            const { group, groupNumber } = sngSlideTagToGroup(lines[0])
-            if (group !== null) {
-                const label = groupNumber ? `${group} ${groupNumber}` : group
-                return `[${label}]\n${lines.slice(1).join("\n")}`
-            }
-            return lines.join("\n")
-        })
-        .filter(Boolean)
-        .join("\n\n")
+function stripTypePrefix(title: string): string {
+    return title.replace(/^(?:song|lied|lob|worship|musik)\W+/i, "").trim()
 }
 
-function getSngLangCount(raw: string): number {
-    const header = raw.split(SNG_SECTION_RE)[0]
-    const m = /^#LangCount=(\d+)/m.exec(header)
-    const n = m ? parseInt(m[1], 10) : 1
-    return isNaN(n) || n < 1 ? 1 : n
-}
-
-function sngToBilingualSections(raw: string, langCount: number): { label: string; langLines: string[][] }[] {
-    const markerRe = /^#([A-Za-z]+)\s+/
-    const langOverwriteRe = /^(#)?#(\d)\s+/
-    return raw.split(SNG_SECTION_RE).slice(1).flatMap((section) => {
-        const rawLines = section.split("\n")
-        let label = ""
-        let startIdx = 0
-        const first = rawLines[0]?.trim() ?? ""
-        if (first) {
-            const { group, groupNumber } = sngSlideTagToGroup(first)
-            if (group !== null) { label = groupNumber ? `${group} ${groupNumber}` : group; startIdx = 1 }
-        }
-        const langLines: string[][] = Array.from({ length: langCount }, () => [])
-        let lang = 0
-        for (let i = startIdx; i < rawLines.length; i++) {
-            let line = rawLines[i].trim()
-            if (!line) continue
-            const marker = markerRe.exec(line)
-            if (marker) {
-                if (marker[1].toUpperCase() === "H") { lang++; continue }
-                line = line.substring(marker[0].length)
-            }
-            const langMatch = langOverwriteRe.exec(line)
-            if (langMatch) {
-                const idx = parseInt(langMatch[2], 10) - 1
-                const noInc = !!langMatch[1]
-                const text = line.substring(langMatch[0].length).trim()
-                if (idx >= 0 && idx < langCount && text) langLines[idx].push(text)
-                if (!noInc) lang++
-                continue
-            }
-            if (lang >= langCount) lang = 0
-            langLines[lang].push(line)
-            lang++
-        }
-        return langLines.some((l) => l.length > 0) ? [{ label, langLines }] : []
-    })
-}
-
-function buildBilingualSongShow(title: string, author: string, ccli: string, key: string, copyright: string, raw: string, langCount: number): { showId: string; show: Show } {
-    const sections = sngToBilingualSections(raw, langCount)
-    if (!sections.length) return buildSongShow(title, author, ccli, key, copyright, sngToLyricsText(raw))
-
-    const slides: { [id: string]: Slide } = {}
-    const layout: SlideData[] = []
-    const labelCounts: Record<string, number> = {}
-
-    for (const { label, langLines } of sections) {
-        const base = label || "Verse"
-        labelCounts[base] = (labelCounts[base] ?? 0) + 1
-        const group = labelCounts[base] > 1 ? `${base} ${labelCounts[base]}` : base
-        const id = uid()
-        slides[id] = {
-            group,
-            globalGroup: group.toLowerCase().replace(/\s+\d+$/, "").trim(),
-            color: null,
-            settings: {},
-            notes: "",
-            items: langLines.map((lines, i) => ({
-                style: i === 0 ? ITEM_STYLE_TOP : ITEM_STYLE_BOTTOM,
-                lines: (lines.length ? lines : [""]).map((l) => ({ align: "", text: [{ style: "", value: l }] }))
-            }))
-        }
-        layout.push({ id })
-    }
-
+function buildSongShowFromSng(
+    title: string,
+    author: string,
+    ccli: string,
+    key: string,
+    copyright: string,
+    raw: string,
+    translationMethod: "multiline" | "textboxes" | "layouts",
+    encoding: "utf8" | "latin1",
+    category = "churchtools"
+): { showId: string; show: Show } {
     const layoutId = uid()
+    const { metadata, slides, layouts } = convertSongbeamerFileToData(title, raw, {
+        translationMethod,
+        itemStyle: ITEM_STYLE,
+        encoding
+    })
+
     const show: Show = {
         name: title,
-        category: "churchtools",
+        category,
         timestamps: { created: Date.now(), modified: null, used: null },
         meta: { title, author, CCLI: ccli, key, copyright },
         settings: { activeLayout: layoutId, template: null },
-        layouts: { [layoutId]: { name: "Default", notes: "", slides: layout } },
+        layouts: { [layoutId]: { name: "Default", notes: "", slides: [] } },
         slides,
         media: {}
     }
-    return { showId: `ctsong_${uid(8)}`, show }
-}
 
-function stripTypePrefix(title: string): string {
-    return title.replace(/^(?:song|lied|lob|worship|musik)\W+/i, "").trim()
+    applySongbeamerLayoutsToShow(show, layoutId, { slides, layouts }, { baseNotes: metadata.comments })
+
+    return { showId: `ctsong_${uid(8)}`, show }
 }
 
 function buildSongImportErrorLyrics(title: string, ccli: string, reason: string): string {
@@ -357,7 +180,7 @@ function buildSongImportErrorLyrics(title: string, ccli: string, reason: string)
     ].join("\n")
 }
 
-async function lookupSng(sngIndex: CtSngIndex, title: string, ccli?: string): Promise<{ lyrics: string; raw: string; langCount: number; sngMeta: ReturnType<typeof parseSngMeta> } | null> {
+async function lookupSng(sngIndex: CtSngIndex, title: string, ccli?: string): Promise<{ raw: string; sngMeta: SongbeamerMetadata } | null> {
     let sngPath = ccli ? sngIndex.byCcli.get(ccli.trim()) : undefined
 
     if (!sngPath && title) {
@@ -369,7 +192,10 @@ async function lookupSng(sngIndex: CtSngIndex, title: string, ccli?: string): Pr
         }
         if (!sngPath && key.length > 4) {
             for (const [t, p] of sngIndex.byTitle.entries()) {
-                if (t.includes(key) || key.includes(t)) { sngPath = p; break }
+                if (t.includes(key) || key.includes(t)) {
+                    sngPath = p
+                    break
+                }
             }
         }
     }
@@ -378,16 +204,14 @@ async function lookupSng(sngIndex: CtSngIndex, title: string, ccli?: string): Pr
         console.info(`ChurchTools lookupSng MISS: title="${title}" ccli="${ccli ?? ""}" byTitle.size=${sngIndex.byTitle.size} byCcli.size=${sngIndex.byCcli.size}`)
         return null
     }
+
     try {
         const raw = await readSngFile(sngPath)
-        const lyrics = sngToLyricsText(raw)
-        if (lyrics.trim()) {
-            console.info(`ChurchTools: .sng match for "${title}"${ccli ? ` (CCLI ${ccli})` : ""}`)
-            const langCount = getSngLangCount(raw)
-            const sngMeta = parseSngMeta(raw)
-            return { lyrics, raw, langCount, sngMeta }
-        }
+        const sngMeta = parseSongbeamerMetadata(raw)
+        console.info(`ChurchTools: .sng match for "${title}"${ccli ? ` (CCLI ${ccli})` : ""}`)
+        return { raw, sngMeta }
     } catch {}
+
     return null
 }
 
@@ -411,7 +235,9 @@ export async function processAgendaItem(
     ctGet: CtGetFn,
     sngIndex?: CtSngIndex,
     dateLabel = "",
-    translationMethod: "multiline" | "textboxes" = "textboxes"
+    translationMethod: "multiline" | "textboxes" | "layouts" = "textboxes",
+    sngEncoding: "utf8" | "latin1" = "utf8",
+    sngCategory = "churchtools"
 ): Promise<{ showId: string; show: Show } | null> {
     const title = (item.title ?? item.name ?? "").trim()
     const note = (item.note ?? "").trim()
@@ -438,15 +264,12 @@ export async function processAgendaItem(
                     const sngCcli = localMatch.sngMeta.ccli || resolvedCcli
                     const sngKey = localMatch.sngMeta.key || meta.key || ""
                     const sngCopyright = localMatch.sngMeta.copyright || ""
-                    if (translationMethod === "textboxes" && localMatch.langCount > 1) {
-                        return buildBilingualSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, localMatch.langCount)
-                    }
-                    return buildSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.lyrics)
+                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory)
                 }
             }
 
             const errorLyrics = buildSongImportErrorLyrics(resolvedTitle, resolvedCcli, "No matching local migrated song found")
-            return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", errorLyrics)
+            return buildSongShow(resolvedTitle, meta.author || "", resolvedCcli, meta.key || "", "", errorLyrics, sngCategory)
         }
 
         if (songTitle) {
@@ -458,14 +281,11 @@ export async function processAgendaItem(
                     const sngCcli = localMatch.sngMeta.ccli || ""
                     const sngKey = localMatch.sngMeta.key || ""
                     const sngCopyright = localMatch.sngMeta.copyright || ""
-                    if (translationMethod === "textboxes" && localMatch.langCount > 1) {
-                        return buildBilingualSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, localMatch.langCount)
-                    }
-                    return buildSongShow(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.lyrics)
+                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory)
                 }
             }
             const errorLyrics = buildSongImportErrorLyrics(songTitle, "", "ChurchTools item is not linked to a ChurchTools song")
-            return buildSongShow(songTitle, "", "", "", "", errorLyrics)
+            return buildSongShow(songTitle, "", "", "", "", errorLyrics, sngCategory)
         }
     }
 
