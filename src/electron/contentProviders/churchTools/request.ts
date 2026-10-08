@@ -50,6 +50,34 @@ function escapeIcal(text: string): string {
     return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n")
 }
 
+function asCtId(value: any): string {
+    if (value === undefined || value === null) return ""
+    const str = String(value).trim()
+    if (!str) return ""
+    return /^[0-9]+$/.test(str) ? str : ""
+}
+
+function buildCtUid(appt: any, domain: string): string {
+    const agendaId =
+        asCtId(appt.id) ||
+        asCtId(appt.agendaId) ||
+        asCtId(appt.base?.agendaId) ||
+        asCtId(appt.base?.id)
+
+    const eventId =
+        asCtId(appt.event?.id) ||
+        asCtId(appt.eventId) ||
+        asCtId(appt.base?.event?.id) ||
+        asCtId(appt.base?.eventId)
+
+    // New format keeps both identifiers for exact CT deep-linking.
+    if (agendaId && eventId) return `ct-a${agendaId}-e${eventId}@${domain}`
+
+    // Backward-compatible format for instances where only one id is exposed.
+    const fallbackId = agendaId || eventId || uid(8)
+    return `ct-${fallbackId}@${domain}`
+}
+
 function buildICalContent(appointments: any[], calName: string, domain: string): string {
     const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FreeShow//ChurchTools//EN", `X-WR-CALNAME:${escapeIcal(calName)}`]
     for (const appt of appointments) {
@@ -60,7 +88,7 @@ function buildICalContent(appointments: any[], calName: string, domain: string):
         const start    = toICalDateTime(startRaw)
         const end      = toICalDateTime(endRaw) || start
         if (!name || !start) continue
-        lines.push("BEGIN:VEVENT", `UID:ct-${appt.id ?? uid(8)}@${domain}`, `SUMMARY:${name}`, `DTSTART:${start}`, `DTEND:${end}`)
+        lines.push("BEGIN:VEVENT", `UID:${buildCtUid(appt, domain)}`, `SUMMARY:${name}`, `DTSTART:${start}`, `DTEND:${end}`)
         if (loc) lines.push(`LOCATION:${loc}`)
         lines.push("END:VEVENT")
     }

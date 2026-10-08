@@ -119,6 +119,7 @@ import { getMenuTagId, openTagManager, toggleSelectionTags, toggleTagFilter } fr
 import { clearSlide } from "../output/clear"
 import { defaultThemes } from "../settings/tabs/defaultThemes"
 import { importChurchToolsEventDay } from "../../utils/churchtools/importDay"
+import { openChurchToolsEvent } from "../../utils/churchtools/openInChurchTools"
 import { activeProject } from "./../../stores"
 import type { ContextMenuItem } from "./contextMenus"
 
@@ -1142,6 +1143,9 @@ const clickActions = {
     },
     ct_import_day: (obj: ObjData) => {
         importChurchToolsEventDay(obj.contextElem?.id || "")
+    },
+    ct_open_in: (obj: ObjData) => {
+        openChurchToolsEvent(obj.contextElem?.id || "")
     },
     section: (obj: ObjData) => {
         if (get(projects)[get(activeProject)!]?.sectionsLocked) {
