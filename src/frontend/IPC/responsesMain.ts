@@ -363,6 +363,15 @@ export const mainResponses: MainResponses = {
         // CREATE CATEGORY
         createCategory(data.categoryName)
 
+        // Provider shows can target additional categories (e.g. CT SongBeamer pool).
+        // Ensure those categories exist before shows are written.
+        const providerShowCategories = new Set(
+            data.shows
+                .map((show) => (typeof show?.category === "string" ? show.category.trim() : ""))
+                .filter((category) => category && category.toLowerCase() !== "undefined" && category.toLowerCase() !== "null")
+        )
+        providerShowCategories.forEach((category) => createCategory(category))
+
         const replaceIds: { [key: string]: string } = {}
         const allShows = keysToID(get(shows))
         const songOrigin = get(contentProviderData)[data.providerId]?.songOrigin

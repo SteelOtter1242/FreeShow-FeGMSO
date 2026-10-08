@@ -20,6 +20,16 @@ export type CTProjectImportScope = {
     selectedDay?: string
 }
 
+function normalizeCategoryId(value?: string, fallback = "songpool"): string {
+    const trimmed = (value || "").trim()
+    if (!trimmed) return fallback
+
+    const lowered = trimmed.toLowerCase()
+    if (lowered === "undefined" || lowered === "null") return fallback
+
+    return lowered.replace(/[()]/g, "").replace(/\s+/g, "_")
+}
+
 function getEventDateKey(event: any): string {
     const startDate: string = event?.attributes?.startDate ?? event?.startDate ?? ""
     const explicitDate = startDate.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
@@ -43,6 +53,7 @@ export async function ctFetchProjectEvents(domain: string, token: string, scope:
 
     let eventsResult = await ctGet(domain, token, "events", params)
     let events: any[] = eventsResult?.data ?? []
+    let usedFallbackWindow = false
     console.info(`[CT-SYNC] events fetched count=${events.length}`)
 
     if (eventsResult?.__error?.statusCode === 403) {
@@ -55,6 +66,7 @@ export async function ctFetchProjectEvents(domain: string, token: string, scope:
     // Date-scoped import can miss services around midnight/timezone boundaries.
     // Retry once with a wider range before giving up.
     if (!events.length && scope.from && scope.to) {
+        usedFallbackWindow = true
         const fallbackFromDate = new Date(`${scope.from}T00:00:00Z`)
         const fallbackToDate = new Date(`${scope.to}T00:00:00Z`)
         fallbackFromDate.setDate(fallbackFromDate.getDate() - 7)
@@ -65,7 +77,13 @@ export async function ctFetchProjectEvents(domain: string, token: string, scope:
         eventsResult = await ctGet(domain, token, "events", fallbackParams)
         events = eventsResult?.data ?? []
         console.info(`[CT-SYNC] fallback window used from=${fallbackFrom} to=${fallbackTo} count=${events.length}`)
-        if (events.length) sendToMain(ToMain.TOAST, `ChurchTools: no exact date match; synced from ${fallbackFrom} to ${fallbackTo}`)
+        if (events.length && !scope.isSingleDayImport) {
+            sendToMain(ToMain.TOAST, `ChurchTools: no exact date match; synced from ${fallbackFrom} to ${fallbackTo}`)
+        }
+    }
+
+    if (usedFallbackWindow && scope.isSingleDayImport) {
+        console.info("[CT-SYNC] single-day import required fallback events query window (timezone/API boundary behavior)")
     }
 
     if (!events.length) {
@@ -102,7 +120,7 @@ export async function ctImportProjectsFromEvents(
     sendToMain(ToMain.TOAST, `Loading ${events.length} service(s) from ChurchTools…`)
 
     const sngIndex = access.sngFolder ? await buildSngIndex(access.sngFolder, (message) => sendToMain(ToMain.ALERT, message)) : undefined
-    const sngCategory = access.sngCategory || "churchtools"
+    const sngCategory = normalizeCategoryId(access.sngCategory)
     const sngEncoding: "utf8" | "latin1" = access.sngEncoding || "utf8"
     const translationMethod: "multiline" | "textboxes" | "layouts" = access.sngTranslationMethod || "textboxes"
     const pad = (n: number) => n.toString().padStart(2, "0")
@@ -160,7 +178,7 @@ export async function ctImportProjectsFromEvents(
             let rawEventFiles: any[] = event.eventFiles ?? event.attributes?.eventFiles ?? []
             if (!rawEventFiles.length) {
                 const detail = await ctGet(domain, token, `events/${eventId}`, { include: "eventFiles" })
-                rawEventFiles = detail?.data?.eventFiles ?? detail?.data?.attributes?.eventFiles ?? []
+                rawEventFiles = detail?.data?.eventFiles ?? detail?.data?.attributes?.eventFiles ?? detail?.included ?? []
             }
             const attachments = await fetchEventAttachments(domain, token, eventId, rawEventFiles)
             if (attachments.length) console.info(`[CT-SYNC] event ${eventId} attachmentsImported=${attachments.length}`)
