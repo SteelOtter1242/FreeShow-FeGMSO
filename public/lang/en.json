@@ -1573,7 +1573,8 @@
         "delete_confirmation": "Are you sure you want to delete all events from this calendar?"
     },
     "ct": {
-        "import_day": "ChurchTools Import (day)"
+        "import_day": "ChurchTools Import (day)",
+        "open_in": "Open in ChurchTools"
     },
     "scripture": {
         "collections": "Collections",

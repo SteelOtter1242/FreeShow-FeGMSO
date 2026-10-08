@@ -1451,7 +1451,8 @@
         "add_slides_from_show": "Folien von Show einfügen"
     },
     "ct": {
-        "import_day": "ChurchTools Import (Tag)"
+        "import_day": "ChurchTools Import (Tag)",
+        "open_in": "In ChurchTools öffnen"
     },
     "scripture": {
         "collections": "Sammlungen",
