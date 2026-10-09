@@ -13,7 +13,7 @@
     const encodingOptions = [
         {
             value: "auto",
-            label: "Auto (recommended)"
+            label: `${translateText("settings.auto")} (${translateText("media.recommended")})`
         },
         {
             value: "utf8",
