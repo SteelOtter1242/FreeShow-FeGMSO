@@ -1,7 +1,7 @@
 import fs from "fs"
 import path from "path"
 import { uid } from "uid"
-import type { Show, Slide, SlideData } from "../../../types/Show"
+import type { Item, Layout, Show, Slide, SlideData } from "../../../types/Show"
 import type { SongbeamerMetadata } from "../../../shared/songbeamer/songbeamerCore"
 import { applySongbeamerLayoutsToShow, convertSongbeamerFileToData, parseSongbeamerMetadata, stripSongbeamerBom } from "../../../shared/songbeamer/songbeamerCore"
 
@@ -10,6 +10,9 @@ const ITEM_STYLE = "top:88px;left:50px;height:904px;width:1820px;"
 export type CtSngIndex = { byTitle: Map<string, string>; byCcli: Map<string, string> }
 
 type CtGetFn = (domain: string, token: string, endpoint: string, params?: Record<string, string>) => Promise<any>
+type SngVariationFamily = "multiline" | "textboxes" | "single"
+type SongbeamerConversion = ReturnType<typeof convertSongbeamerFileToData>
+type BilingualVariantMode = "ml_balanced" | "ml_emphasis" | "tb_balanced" | "tb_emphasis"
 
 function buildSongShow(title: string, author: string, ccli: string, key: string, copyright: string, lyrics: string, category = "churchtools"): { showId: string; show: Show } {
     const slides: { [id: string]: Slide } = {}
@@ -134,6 +137,288 @@ function stripTypePrefix(title: string): string {
     return title.replace(/^(?:song|lied|lob|worship|musik)\W+/i, "").trim()
 }
 
+function normalizeVariationFamilies(families?: SngVariationFamily[]): SngVariationFamily[] {
+    if (!Array.isArray(families) || !families.length) return []
+
+    const validFamilies: SngVariationFamily[] = ["multiline", "textboxes", "single"]
+    const normalized = families.filter((value): value is SngVariationFamily => validFamilies.includes(value as SngVariationFamily))
+    return Array.from(new Set(normalized))
+}
+
+function normalizeSongbeamerEncoding(rawText: string, encoding: "auto" | "utf8" | "latin1"): "utf8" | "latin1" {
+    if (encoding === "utf8" || encoding === "latin1") return encoding
+
+    const declared = rawText.match(/^#Encoding=(.+)$/im)?.[1]?.trim().toLowerCase() || ""
+    if (["latin1", "iso-8859-1", "cp1252", "windows-1252", "ansi"].includes(declared)) return "latin1"
+    return "utf8"
+}
+
+function getBilingualLanguageLabels(rawText: string, langCount: number): [string, string] {
+    const fallback: [string, string] = ["EN", "DE"]
+    if (!rawText || langCount < 2) return fallback
+
+    const languageCodes = extractLanguageCodesFromMetadata(rawText, langCount)
+    const first = languageCodes[0] || fallback[0]
+    const second = languageCodes[1] || fallback[1]
+    return [first, second]
+}
+
+function extractLanguageCodesFromMetadata(rawText: string, langCount: number): string[] {
+    const codes: string[] = Array.from({ length: Math.max(2, langCount) }, () => "")
+
+    for (const line of rawText.split(/\r?\n/)) {
+        if (!line.startsWith("#")) continue
+
+        const parts = line.substring(1).split("=", 2)
+        if (parts.length !== 2) continue
+
+        const key = parts[0].trim().toLowerCase()
+        if (key === "langcount") continue
+
+        const value = parts[1].trim()
+        if (!value) continue
+
+        const indexMatch = key.match(/(?:^|[^a-z])(lang|language)(?:code|name)?\s*(\d+)(?:$|[^a-z])/i)
+        if (!indexMatch) continue
+
+        const index = parseInt(indexMatch[2], 10) - 1
+        if (isNaN(index) || index < 0 || index >= codes.length || codes[index]) continue
+
+        const normalized = normalizeLanguageCode(value)
+        if (normalized) codes[index] = normalized
+    }
+
+    return codes
+}
+
+function normalizeLanguageCode(raw: string): string {
+    const cleaned = raw.trim().toLowerCase()
+    if (!cleaned) return ""
+
+    const namedMap: { [key: string]: string } = {
+        english: "EN",
+        deutsch: "DE",
+        german: "DE",
+        francais: "FR",
+        french: "FR",
+        espanol: "ES",
+        spanish: "ES",
+        italiano: "IT",
+        italian: "IT",
+        portugues: "PT",
+        portuguese: "PT",
+        nederlands: "NL",
+        dutch: "NL"
+    }
+
+    if (namedMap[cleaned]) return namedMap[cleaned]
+
+    const token = cleaned.split(/[\s,;|/_-]+/).find(Boolean) || ""
+    if (!token) return ""
+
+    if (/^[a-z]{2}$/.test(token)) return token.toUpperCase()
+    if (/^[a-z]{2,3}$/.test(token)) return token.slice(0, 2).toUpperCase()
+
+    return ""
+}
+
+function buildBilingualVariants(raw: string, encoding: "utf8" | "latin1", families: SngVariationFamily[]): SongbeamerConversion {
+    const mergedSlides: { [key: string]: Slide } = {}
+    const layouts: Layout[] = []
+
+    const baseMetadata = parseSongbeamerMetadata(raw, encoding)
+    const [firstLang, secondLang] = getBilingualLanguageLabels(raw, baseMetadata.lang_count)
+    const firstUpper = firstLang.toUpperCase()
+    const secondUpper = secondLang.toUpperCase()
+    const firstLower = firstLang.toLowerCase()
+    const secondLower = secondLang.toLowerCase()
+
+    if (families.includes("multiline")) {
+        const conversion = convertSongbeamerFileToData("", raw, { translationMethod: "multiline", itemStyle: ITEM_STYLE, encoding })
+        Object.assign(mergedSlides, conversion.slides)
+
+        const baseLayout = conversion.layouts[0]
+        if (baseLayout) {
+            layouts.push({ id: uid(), name: `${firstUpper}/${secondLower}`, notes: "", slides: cloneLayoutSlidesForVariant(baseLayout.slides, mergedSlides, "ml_balanced") })
+            layouts.push({ id: uid(), name: `${firstUpper}+${secondLower}`, notes: "", slides: cloneLayoutSlidesForVariant(baseLayout.slides, mergedSlides, "ml_emphasis") })
+        }
+    }
+
+    if (families.includes("textboxes")) {
+        const conversion = convertSongbeamerFileToData("", raw, { translationMethod: "textboxes", itemStyle: ITEM_STYLE, encoding })
+        Object.assign(mergedSlides, conversion.slides)
+
+        const baseLayout = conversion.layouts[0]
+        if (baseLayout) {
+            layouts.push({ id: uid(), name: `${firstLower}/${secondUpper}`, notes: "", slides: cloneLayoutSlidesForVariant(baseLayout.slides, mergedSlides, "tb_balanced") })
+            layouts.push({ id: uid(), name: `${firstLower}+${secondUpper}`, notes: "", slides: cloneLayoutSlidesForVariant(baseLayout.slides, mergedSlides, "tb_emphasis") })
+        }
+    }
+
+    if (families.includes("single")) {
+        const conversion = convertSongbeamerFileToData("", raw, { translationMethod: "layouts", itemStyle: ITEM_STYLE, encoding })
+        Object.assign(mergedSlides, conversion.slides)
+
+        const primaryLayout = conversion.layouts[0]
+        const secondaryLayout = conversion.layouts[1]
+        if (primaryLayout) layouts.push({ ...primaryLayout, id: uid(), name: firstUpper })
+        if (secondaryLayout) layouts.push({ ...secondaryLayout, id: uid(), name: secondUpper })
+    }
+
+    return { metadata: baseMetadata, slides: mergedSlides, layouts }
+}
+
+function cloneLayoutSlidesForVariant(sourceSlides: SlideData[], allSlides: { [key: string]: Slide }, mode: BilingualVariantMode): SlideData[] {
+    const slideIdMap: { [key: string]: string } = {}
+    const visited = new Set<string>()
+
+    const markSlideTree = (slideId: string) => {
+        if (!slideId || visited.has(slideId) || !allSlides[slideId]) return
+        visited.add(slideId)
+
+        const slide = allSlides[slideId]
+        slide.children?.forEach((childId) => markSlideTree(childId))
+    }
+
+    sourceSlides.forEach(({ id }) => markSlideTree(id))
+    visited.forEach((oldId) => {
+        slideIdMap[oldId] = uid()
+    })
+
+    visited.forEach((oldId) => {
+        const sourceSlide = allSlides[oldId]
+        if (!sourceSlide) return
+
+        const clonedSlide = cloneDeep(sourceSlide)
+        if (Array.isArray(clonedSlide.children)) {
+            clonedSlide.children = clonedSlide.children.map((childId) => slideIdMap[childId]).filter(Boolean)
+        }
+        clonedSlide.items = createVariantItems(clonedSlide.items, mode)
+
+        allSlides[slideIdMap[oldId]] = clonedSlide
+    })
+
+    return sourceSlides.map((slideData) => remapSlideData(slideData, slideIdMap))
+}
+
+function remapSlideData(slideData: SlideData, slideIdMap: { [key: string]: string }): SlideData {
+    const cloned = cloneDeep(slideData)
+    if (slideIdMap[cloned.id]) cloned.id = slideIdMap[cloned.id]
+    if (cloned.children) cloned.children = remapChildrenMap(cloned.children, slideIdMap)
+    return cloned
+}
+
+function remapChildrenMap(children: { [key: string]: any }, slideIdMap: { [key: string]: string }): { [key: string]: any } {
+    const remappedChildren: { [key: string]: any } = {}
+    Object.entries(children).forEach(([key, value]) => {
+        const newKey = slideIdMap[key] || key
+        remappedChildren[newKey] = remapChildValue(value, slideIdMap)
+    })
+    return remappedChildren
+}
+
+function remapChildValue(value: any, slideIdMap: { [key: string]: string }) {
+    if (!value || typeof value !== "object") return value
+
+    const cloned = cloneDeep(value)
+    if (typeof cloned.id === "string" && slideIdMap[cloned.id]) cloned.id = slideIdMap[cloned.id]
+    if (cloned.children && typeof cloned.children === "object") {
+        cloned.children = remapChildrenMap(cloned.children, slideIdMap)
+    }
+    return cloned
+}
+
+function createVariantItems(items: Item[], mode: BilingualVariantMode): Item[] {
+    if (!Array.isArray(items) || !items.length) return []
+
+    if (mode === "ml_balanced") {
+        const multiline = cloneDeep(items[0])
+        return [styleMultiline(multiline, false)]
+    }
+    if (mode === "ml_emphasis") {
+        const multiline = cloneDeep(items[0])
+        return [styleMultiline(multiline, true)]
+    }
+
+    const firstLanguage = cloneDeep(items[0] || items[items.length - 1])
+    const secondLanguage = cloneDeep(items[1] || items[0] || items[items.length - 1])
+
+    if (mode === "tb_balanced") return [styleTextboxPrimary(secondLanguage, false), styleTextboxSecondary(firstLanguage, false)]
+    return [styleTextboxPrimary(secondLanguage, true), styleTextboxSecondary(firstLanguage, true)]
+}
+
+function styleMultiline(item: Item, emphasis: boolean): Item {
+    item.style = setStyleValue(item.style || "", "font-weight", emphasis ? "700" : "500")
+    item.style = setStyleValue(item.style, "font-style", "normal")
+    item.style = setStyleValue(item.style, "font-size", emphasis ? "1.08em" : "1.0em")
+    return item
+}
+
+function styleTextboxPrimary(item: Item, emphasis: boolean): Item {
+    item.style = setStyleValue(item.style || "", "font-weight", emphasis ? "700" : "600")
+    item.style = setStyleValue(item.style, "font-style", "normal")
+    item.style = setStyleValue(item.style, "font-size", emphasis ? "1.08em" : "1em")
+
+    if (emphasis) {
+        const { top, height } = getStyleTopHeight(item.style)
+        if (top !== null && height !== null) {
+            item.style = setStyleValue(item.style, "top", `${Math.round(top)}px`)
+            item.style = setStyleValue(item.style, "height", `${Math.max(120, Math.round(height * 0.62))}px`)
+        } else {
+            item.style = setStyleValue(item.style, "top", "15%")
+            item.style = setStyleValue(item.style, "height", "56%")
+        }
+    }
+
+    return item
+}
+
+function styleTextboxSecondary(item: Item, emphasis: boolean): Item {
+    item.style = setStyleValue(item.style || "", "font-weight", emphasis ? "400" : "500")
+    item.style = setStyleValue(item.style, "font-style", emphasis ? "italic" : "normal")
+    item.style = setStyleValue(item.style, "font-size", emphasis ? "0.78em" : "0.92em")
+    if (emphasis) item.style = setStyleValue(item.style, "opacity", "0.9")
+
+    const { top, height } = getStyleTopHeight(item.style)
+    if (top !== null && height !== null) {
+        const baseTopFactor = emphasis ? 0.66 : 0.58
+        const baseHeightFactor = emphasis ? 0.28 : 0.38
+        const smallTop = Math.round(top + height * baseTopFactor)
+        const smallHeight = Math.max(80, Math.round(height * baseHeightFactor))
+        item.style = setStyleValue(item.style, "top", `${smallTop}px`)
+        item.style = setStyleValue(item.style, "height", `${smallHeight}px`)
+    } else {
+        item.style = setStyleValue(item.style, "top", emphasis ? "73%" : "65%")
+        item.style = setStyleValue(item.style, "height", emphasis ? "22%" : "30%")
+    }
+
+    return item
+}
+
+function getStyleTopHeight(style: string): { top: number | null; height: number | null } {
+    const topMatch = style.match(/(?:^|;)\s*top\s*:\s*(-?\d+(?:\.\d+)?)px\s*(?:;|$)/i)
+    const heightMatch = style.match(/(?:^|;)\s*height\s*:\s*(-?\d+(?:\.\d+)?)px\s*(?:;|$)/i)
+
+    return {
+        top: topMatch ? parseFloat(topMatch[1]) : null,
+        height: heightMatch ? parseFloat(heightMatch[1]) : null
+    }
+}
+
+function setStyleValue(style: string, key: string, value: string): string {
+    const normalized = style.replace(new RegExp(`(?:^|;)\\s*${escapeRegExp(key)}\\s*:[^;]*;?`, "gi"), ";")
+    const withSeparator = normalized.trim().endsWith(";") || normalized.trim() === "" ? normalized.trim() : `${normalized.trim()};`
+    return `${withSeparator}${key}:${value};`
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function cloneDeep<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T
+}
+
 function buildSongShowFromSng(
     title: string,
     author: string,
@@ -142,15 +427,28 @@ function buildSongShowFromSng(
     copyright: string,
     raw: string,
     translationMethod: "multiline" | "textboxes" | "layouts",
-    encoding: "utf8" | "latin1",
-    category = "churchtools"
+    encoding: "auto" | "utf8" | "latin1",
+    category = "churchtools",
+    variationFamilies?: SngVariationFamily[]
 ): { showId: string; show: Show } {
     const layoutId = uid()
-    const { metadata, slides, layouts } = convertSongbeamerFileToData(title, raw, {
+    const resolvedEncoding = normalizeSongbeamerEncoding(raw, encoding)
+    let conversion = convertSongbeamerFileToData(title, raw, {
         translationMethod,
         itemStyle: ITEM_STYLE,
-        encoding
+        encoding: resolvedEncoding
     })
+
+    const normalizedFamilies = normalizeVariationFamilies(variationFamilies)
+    if (conversion.metadata.lang_count >= 2 && normalizedFamilies.length) {
+        const variantConversion = buildBilingualVariants(raw, resolvedEncoding, normalizedFamilies)
+        if (variantConversion.layouts.length) {
+            variantConversion.metadata = conversion.metadata
+            conversion = variantConversion
+        }
+    }
+
+    const { metadata, slides, layouts } = conversion
 
     const show: Show = {
         name: title,
@@ -236,8 +534,9 @@ export async function processAgendaItem(
     sngIndex?: CtSngIndex,
     dateLabel = "",
     translationMethod: "multiline" | "textboxes" | "layouts" = "textboxes",
-    sngEncoding: "utf8" | "latin1" = "utf8",
-    sngCategory = "churchtools"
+    sngEncoding: "auto" | "utf8" | "latin1" = "auto",
+    sngCategory = "churchtools",
+    variationFamilies?: SngVariationFamily[]
 ): Promise<{ showId: string; show: Show } | null> {
     const title = (item.title ?? item.name ?? "").trim()
     const note = (item.note ?? "").trim()
@@ -264,7 +563,7 @@ export async function processAgendaItem(
                     const sngCcli = localMatch.sngMeta.ccli || resolvedCcli
                     const sngKey = localMatch.sngMeta.key || meta.key || ""
                     const sngCopyright = localMatch.sngMeta.copyright || ""
-                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory)
+                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory, variationFamilies)
                 }
             }
 
@@ -281,7 +580,7 @@ export async function processAgendaItem(
                     const sngCcli = localMatch.sngMeta.ccli || ""
                     const sngKey = localMatch.sngMeta.key || ""
                     const sngCopyright = localMatch.sngMeta.copyright || ""
-                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory)
+                    return buildSongShowFromSng(sngTitle, sngAuthor, sngCcli, sngKey, sngCopyright, localMatch.raw, translationMethod, sngEncoding, sngCategory, variationFamilies)
                 }
             }
             const errorLyrics = buildSongImportErrorLyrics(songTitle, "", "ChurchTools item is not linked to a ChurchTools song")

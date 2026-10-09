@@ -9,8 +9,9 @@ type CTGetFn = (domain: string, token: string, endpoint: string, params?: Record
 type CTAccess = {
     sngFolder?: string
     sngCategory?: string
-    sngEncoding?: "utf8" | "latin1"
+    sngEncoding?: "auto" | "utf8" | "latin1"
     sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
+    sngVariationFamilies?: ("multiline" | "textboxes" | "single")[]
 }
 
 export type CTProjectImportScope = {
@@ -121,8 +122,9 @@ export async function ctImportProjectsFromEvents(
 
     const sngIndex = access.sngFolder ? await buildSngIndex(access.sngFolder, (message) => sendToMain(ToMain.ALERT, message)) : undefined
     const sngCategory = normalizeCategoryId(access.sngCategory)
-    const sngEncoding: "utf8" | "latin1" = access.sngEncoding || "utf8"
+    const sngEncoding: "auto" | "utf8" | "latin1" = access.sngEncoding || "auto"
     const translationMethod: "multiline" | "textboxes" | "layouts" = access.sngTranslationMethod || "textboxes"
+    const variationFamilies = Array.isArray(access.sngVariationFamilies) ? access.sngVariationFamilies : undefined
     const pad = (n: number) => n.toString().padStart(2, "0")
 
     const projects: any[] = []
@@ -164,7 +166,7 @@ export async function ctImportProjectsFromEvents(
 
                 let result: Awaited<ReturnType<typeof processAgendaItem>> | null = null
                 try {
-                    result = await processAgendaItem(domain, token, item, ctGet, sngIndex, dateLabel, translationMethod, sngEncoding, sngCategory)
+                    result = await processAgendaItem(domain, token, item, ctGet, sngIndex, dateLabel, translationMethod, sngEncoding, sngCategory, variationFamilies)
                 } catch (err: any) {
                     console.warn(`ChurchTools: error on item "${item.title}": ${err?.message ?? err}`)
                 }
