@@ -150,21 +150,22 @@ function getOrCreateTag(name: string) {
 }
 
 function base64Decode(text: string, encoding: BufferEncoding = "utf8"): string {
+    let bytes: Uint8Array
+
     try {
         const decoded = atob(text)
-        const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0))
+        bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0))
+    } catch {
+        return text
+    }
 
+    try {
         if (encoding === "latin1") {
             return new TextDecoder("iso-8859-1").decode(bytes)
         }
-
-        try {
-            return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
-        } catch {
-            return new TextDecoder("iso-8859-1").decode(bytes)
-        }
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
     } catch {
-        return text
+        return new TextDecoder("iso-8859-1").decode(bytes)
     }
 }
 
