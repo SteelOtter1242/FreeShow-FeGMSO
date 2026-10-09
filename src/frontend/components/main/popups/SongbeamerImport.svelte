@@ -12,6 +12,10 @@
 
     const encodingOptions = [
         {
+            value: "auto",
+            label: "Auto (recommended)"
+        },
+        {
             value: "utf8",
             label: "UTF-8"
         },

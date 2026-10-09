@@ -15,6 +15,8 @@ import { filePathHashCode } from "./thumbnails"
 import { decompressZip, decompressZipStream, isZip } from "./zip"
 
 type FileData = { content: Buffer | string | object; path?: string; name?: string; extension?: string }
+type SongbeamerEncodingMode = BufferEncoding | "auto"
+type SongbeamerReadResult = { content: string; encoding: BufferEncoding }
 
 // Legacy SongBeamer files are often exported as Windows-1252 even when users select
 // Latin-1, so we remap the 0x80-0x9F range to preserve punctuation/symbols.
@@ -31,26 +33,69 @@ function stripBom(text: string): string {
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
 }
 
-function decodeSongbeamerBuffer(buffer: Buffer, encoding: BufferEncoding): string {
-    if (!buffer.length) return ""
-
-    // Handle UTF-8 BOM first so conversion is deterministic regardless of selected import mode.
-    if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
-        return stripBom(buffer.slice(3).toString("utf-8"))
-    }
-
-    // Keep UTF-8 path strict when explicitly chosen by user import settings.
-    if (encoding === "utf8" || encoding === "utf-8") {
-        return stripBom(buffer.toString("utf-8"))
-    }
-
-    // "latin1" is treated as a practical legacy mode: decode single-byte text and
-    // repair cp1252 punctuation bytes that would otherwise become control characters.
+function decodeSongbeamerLatin1(buffer: Buffer): string {
     const latin1Text = buffer.toString("latin1")
     return stripBom(latin1Text.replace(/[\x80-\x9F]/g, (char) => WIN1252[char.charCodeAt(0)] ?? char))
 }
 
-async function readSongbeamerFile(filePath: string, encoding: BufferEncoding): Promise<string> {
+function parseDeclaredSongbeamerEncoding(buffer: Buffer): BufferEncoding | null {
+    const header = buffer.slice(0, 512).toString("latin1")
+    const declared = header.match(/^#Encoding=(.+)$/im)?.[1]?.trim().toLowerCase() ?? ""
+    if (!declared) return null
+
+    if (declared === "utf8" || declared === "utf-8") return "utf8"
+    if (["latin1", "iso-8859-1", "cp1252", "windows-1252", "ansi"].includes(declared)) return "latin1"
+    return null
+}
+
+function isValidUtf8(buffer: Buffer): boolean {
+    try {
+        new TextDecoder("utf-8", { fatal: true }).decode(buffer)
+        return true
+    } catch {
+        return false
+    }
+}
+
+function normalizeSongbeamerEncodingMode(mode: SongbeamerEncodingMode | undefined): SongbeamerEncodingMode {
+    if (mode === "latin1") return "latin1"
+    if (mode === "utf8" || mode === "utf-8") return "utf8"
+    return "auto"
+}
+
+function decodeSongbeamerBuffer(buffer: Buffer, encodingMode: SongbeamerEncodingMode): SongbeamerReadResult {
+    if (!buffer.length) return { content: "", encoding: "utf8" as BufferEncoding } as SongbeamerReadResult
+
+    const mode = normalizeSongbeamerEncodingMode(encodingMode)
+
+    // Handle UTF-8 BOM first so conversion is deterministic regardless of selected import mode.
+    if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+        return { content: stripBom(buffer.slice(3).toString("utf-8")), encoding: "utf8" }
+    }
+
+    if (mode === "utf8") {
+        return { content: stripBom(buffer.toString("utf-8")), encoding: "utf8" }
+    }
+    if (mode === "latin1") {
+        return { content: decodeSongbeamerLatin1(buffer), encoding: "latin1" }
+    }
+
+    const declaredEncoding = parseDeclaredSongbeamerEncoding(buffer)
+    if (declaredEncoding === "utf8") {
+        return { content: stripBom(buffer.toString("utf-8")), encoding: "utf8" }
+    }
+    if (declaredEncoding === "latin1") {
+        return { content: decodeSongbeamerLatin1(buffer), encoding: "latin1" }
+    }
+
+    if (isValidUtf8(buffer)) {
+        return { content: stripBom(buffer.toString("utf-8")), encoding: "utf8" }
+    }
+
+    return { content: decodeSongbeamerLatin1(buffer), encoding: "latin1" }
+}
+
+async function readSongbeamerFile(filePath: string, encoding: SongbeamerEncodingMode): Promise<SongbeamerReadResult> {
     const buffer = await readFileBufferAsync(filePath)
     return decodeSongbeamerBuffer(buffer, encoding)
 }
@@ -155,14 +200,20 @@ export async function importShow(id: string, files: string[] | null, importSetti
     }
 
     if (id === "songbeamer") {
-        const encoding: BufferEncoding = importSettings.encoding || "utf8"
-        const fileContents: { name: string; content: string }[] = []
+        const encoding: SongbeamerEncodingMode = normalizeSongbeamerEncodingMode(importSettings.encoding)
+        const fileContents: { name: string; content: string; encoding: BufferEncoding }[] = []
+        const detectedEncodings: { [key: string]: number } = { utf8: 0, latin1: 0 }
         await asyncPool(20, files, async (file) => {
+            const decoded = await readSongbeamerFile(file, encoding)
+            detectedEncodings[decoded.encoding] = (detectedEncodings[decoded.encoding] || 0) + 1
             fileContents.push({
                 name: getFileName(file),
-                content: await readSongbeamerFile(file, encoding)
+                content: decoded.content,
+                encoding: decoded.encoding
             })
         })
+
+        const resolvedEncoding: BufferEncoding = detectedEncodings.latin1 > detectedEncodings.utf8 ? "latin1" : "utf8"
 
         const category =
             typeof importSettings.category === "string"
@@ -174,7 +225,7 @@ export async function importShow(id: string, files: string[] | null, importSetti
         const custom = {
             files: fileContents,
             length: fileContents.length,
-            encoding,
+            encoding: resolvedEncoding,
             category,
             translationMethod: importSettings.translation
         }
