@@ -17,6 +17,12 @@ interface ImportSettings {
     translationMethod: TranslationMethod
 }
 
+function normalizeSongbeamerEncoding(encoding: unknown, fallback: BufferEncoding = "utf8"): BufferEncoding {
+    if (encoding === "latin1") return "latin1"
+    if (encoding === "utf8" || encoding === "utf-8") return "utf8"
+    return fallback === "latin1" ? "latin1" : "utf8"
+}
+
 interface SongbeamerChord {
     x: number
     line: number
@@ -70,19 +76,22 @@ const BOM16 = String.fromCodePoint(0xfeff) // UTF-16
 export function convertSongbeamerFiles({ files = [], category = "Songbeamer", translationMethod = TranslationMethod.MultiLine, encoding = "utf8" }: any) {
     const settings: ImportSettings = {
         category,
-        encoding,
+        encoding: normalizeSongbeamerEncoding(encoding),
         translationMethod
     }
 
     const tempShows: { id: string; show: Show }[] = []
-    files.forEach(({ name, content }) => {
+    files.forEach(({ name, content, encoding: fileEncoding }) => {
         if (content.substring(0, 3) === BOM8) {
             content = content.substring(3)
         }
         if (content.charAt(0) === BOM16) {
             content = content.substring(1)
         }
-        const show = convertSongbeamerFileToShow(name, content, settings)
+        const show = convertSongbeamerFileToShow(name, content, {
+            ...settings,
+            encoding: normalizeSongbeamerEncoding(fileEncoding, settings.encoding)
+        })
         tempShows.push({
             id: uid(),
             show
