@@ -13,7 +13,8 @@ export type CTAuthData = {
     calWeeksBack?: number
     sngFolder?: string
     sngCategory?: string
-    sngEncoding?: "utf8" | "latin1"
+    sngEncoding?: "auto" | "utf8" | "latin1"
     sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
+    sngVariationFamilies?: ("multiline" | "textboxes" | "single")[]
     calWeeksAhead?: number
 } | null

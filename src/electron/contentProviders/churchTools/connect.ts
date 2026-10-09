@@ -25,8 +25,9 @@ type CTConnectData = {
     url?: string
     sngFolder?: string
     sngCategory?: string
-    sngEncoding?: "utf8" | "latin1"
+    sngEncoding?: "auto" | "utf8" | "latin1"
     sngTranslationMethod?: "multiline" | "textboxes" | "layouts"
+    sngVariationFamilies?: ("multiline" | "textboxes" | "single")[]
     calWeeksBack?: number
     calWeeksAhead?: number
     clientId?: string
@@ -147,6 +148,7 @@ function mergeSettings(access: NonNullable<CTAuthData>, data?: CTConnectData): N
     if (data?.sngCategory !== undefined) updated.sngCategory = data.sngCategory?.trim() || undefined
     if (data?.sngEncoding !== undefined) updated.sngEncoding = data.sngEncoding
     if (data?.sngTranslationMethod !== undefined) updated.sngTranslationMethod = data.sngTranslationMethod
+    if (data?.sngVariationFamilies !== undefined) updated.sngVariationFamilies = data.sngVariationFamilies
     if (data?.calWeeksBack !== undefined) updated.calWeeksBack = data.calWeeksBack
     if (data?.calWeeksAhead !== undefined) updated.calWeeksAhead = data.calWeeksAhead
     if (data?.clientId !== undefined) updated.clientId = data.clientId?.trim() || DEFAULT_CT_CLIENT_ID

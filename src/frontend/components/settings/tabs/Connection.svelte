@@ -195,6 +195,27 @@
         saved.set(false)
     }
 
+    type SongbeamerVariationFamily = "multiline" | "textboxes" | "single"
+    const ctSongbeamerVariationFamilyOptions: { value: SongbeamerVariationFamily; label: string; title: string }[] = [
+        { value: "multiline", label: "Multiline", title: "Interleaved subtitles-style variants (EN/de, EN+de)" },
+        { value: "textboxes", label: "Textboxes", title: "Alternative-style variants (en/DE, en+DE)" },
+        { value: "single", label: "Single", title: "Single-language variants (EN, DE)" }
+    ]
+
+    function getCtVariationFamilies(): SongbeamerVariationFamily[] {
+        const values = $contentProviderData.churchtools?.sngVariationFamilies
+        if (!Array.isArray(values) || !values.length) return ["textboxes", "single"]
+        return values.filter((value: any) => ctSongbeamerVariationFamilyOptions.some((option) => option.value === value))
+    }
+
+    function toggleCtVariationFamily(value: SongbeamerVariationFamily) {
+        const current = getCtVariationFamilies()
+        const next = current.includes(value) ? current.filter((a) => a !== value) : [...current, value]
+
+        // Keep at least one enabled so CT imports always have a deterministic rendering strategy.
+        updateProvider("churchtools", "sngVariationFamilies", next.length ? next : ["textboxes"])
+    }
+
     $: projectTemplateOptions = [{ value: "", label: translateText("main.none") }, ...sortByName(keysToID($projectTemplates)).map(({ id, name }) => ({ value: id, label: name }))]
 
     $: providerOriginOptions = [
@@ -355,7 +376,7 @@
             <MaterialNumberInput label="settings.weeks_ahead" value={$contentProviderData.churchtools?.calWeeksAhead ?? 9} on:change={(e) => updateProvider("churchtools", "calWeeksAhead", e.detail || 9)} />
             <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
             <MaterialTextInput label="SongBeamer category" placeholder="SongPool" value={$contentProviderData.churchtools?.sngCategory || ""} on:change={(e) => updateProvider("churchtools", "sngCategory", e.detail)} />
-            <MaterialDropdown label="SongBeamer encoding" options={[{ value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "utf8"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
+            <MaterialDropdown label="SongBeamer encoding" options={[{ value: "auto", label: "Auto (recommended)" }, { value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "auto"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
             <MaterialDropdown
                 label="SongBeamer translation"
                 options={[
@@ -366,6 +387,19 @@
                 value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"}
                 on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)}
             />
+            <span style="display:block;margin-top:10px;opacity:0.85;font-size:0.92em;">SongBeamer variation families</span>
+            <InputRow>
+                {#each ctSongbeamerVariationFamilyOptions as option}
+                    <MaterialButton
+                        style="flex: 1;border-radius: 0;padding: 6px;border-width: 2px !important;"
+                        isActive={getCtVariationFamilies().includes(option.value)}
+                        title={option.title}
+                        on:click={() => toggleCtVariationFamily(option.value)}
+                    >
+                        {option.label}
+                    </MaterialButton>
+                {/each}
+            </InputRow>
         </div>
     </InputRow>
 {:else if $providerConnections.planningcenter}
@@ -457,7 +491,7 @@
 
     <MaterialTextInput label="SongBeamer folder (lyrics fallback)" placeholder="C:\\Songs" value={$contentProviderData.churchtools?.sngFolder || ""} on:change={(e) => updateProvider("churchtools", "sngFolder", e.detail)} />
     <MaterialTextInput label="SongBeamer category" placeholder="SongPool" value={$contentProviderData.churchtools?.sngCategory || ""} on:change={(e) => updateProvider("churchtools", "sngCategory", e.detail)} />
-    <MaterialDropdown label="SongBeamer encoding" options={[{ value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "utf8"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
+    <MaterialDropdown label="SongBeamer encoding" options={[{ value: "auto", label: "Auto (recommended)" }, { value: "utf8", label: "UTF-8" }, { value: "latin1", label: "Latin 1" }]} value={$contentProviderData.churchtools?.sngEncoding ?? "auto"} on:change={(e) => updateProvider("churchtools", "sngEncoding", e.detail)} />
     <MaterialDropdown
         label="SongBeamer translation"
         options={[
@@ -468,6 +502,20 @@
         value={$contentProviderData.churchtools?.sngTranslationMethod ?? "textboxes"}
         on:change={(e) => updateProvider("churchtools", "sngTranslationMethod", e.detail)}
     />
+
+    <span style="display:block;margin-top:10px;opacity:0.85;font-size:0.92em;">SongBeamer variation families</span>
+    <InputRow>
+        {#each ctSongbeamerVariationFamilyOptions as option}
+            <MaterialButton
+                style="flex: 1;border-radius: 0;padding: 6px;border-width: 2px !important;"
+                isActive={getCtVariationFamilies().includes(option.value)}
+                title={option.title}
+                on:click={() => toggleCtVariationFamily(option.value)}
+            >
+                {option.label}
+            </MaterialButton>
+        {/each}
+    </InputRow>
 {:else if $providerConnections.onstage}
     <!-- OnStage connected -->
     <Title label="Content Provider: OnStage" icon="list" />
