@@ -152,12 +152,11 @@ function getOrCreateTag(name: string) {
 function base64Decode(text: string, encoding: BufferEncoding = "utf8"): string {
     try {
         const decoded = atob(text)
-        const bytes = new Uint8Array(decoded.length)
-        for (let i = 0; i < bytes.length; ++i) {
-            bytes[i] = decoded.charCodeAt(i)
-        }
+        const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0))
 
-        if (encoding === "latin1") return new TextDecoder("iso-8859-1").decode(bytes)
+        if (encoding === "latin1") {
+            return new TextDecoder("iso-8859-1").decode(bytes)
+        }
 
         try {
             return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
