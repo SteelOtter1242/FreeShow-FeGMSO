@@ -155,16 +155,27 @@ export async function importShow(id: string, files: string[] | null, importSetti
     }
 
     if (id === "songbeamer") {
-        const encoding = importSettings.encoding
-        const fileContents: any[] = []
+        const encoding: BufferEncoding = importSettings.encoding || "utf8"
+        const fileContents: { name: string; content: string }[] = []
         await asyncPool(20, files, async (file) => {
-            fileContents.push(await readSongbeamerFile(file, encoding))
+            fileContents.push({
+                name: getFileName(file),
+                content: await readSongbeamerFile(file, encoding)
+            })
         })
+
+        const category =
+            typeof importSettings.category === "string"
+                ? importSettings.category
+                : typeof importSettings.category?.id === "string"
+                  ? importSettings.category.id
+                  : "songbeamer"
+
         const custom = {
             files: fileContents,
             length: fileContents.length,
             encoding,
-            category: importSettings.category.id,
+            category,
             translationMethod: importSettings.translation
         }
 
