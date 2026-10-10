@@ -15,7 +15,6 @@ import { filePathHashCode } from "./thumbnails"
 import { decompressZip, decompressZipStream, isZip } from "./zip"
 
 type FileData = { content: Buffer | string | object; path?: string; name?: string; extension?: string }
-type SongbeamerEncodingMode = BufferEncoding | "auto"
 type SongbeamerReadResult = { content: string; encoding: BufferEncoding }
 
 // Legacy SongBeamer files are often exported as Windows-1252 even when users select
@@ -57,27 +56,12 @@ function isValidUtf8(buffer: Buffer): boolean {
     }
 }
 
-function normalizeSongbeamerEncodingMode(mode: SongbeamerEncodingMode | undefined): SongbeamerEncodingMode {
-    if (mode === "latin1") return "latin1"
-    if (mode === "utf8" || mode === "utf-8") return "utf8"
-    return "auto"
-}
-
-function decodeSongbeamerBuffer(buffer: Buffer, encodingMode: SongbeamerEncodingMode): SongbeamerReadResult {
+function decodeSongbeamerBuffer(buffer: Buffer): SongbeamerReadResult {
     if (!buffer.length) return { content: "", encoding: "utf8" as BufferEncoding } as SongbeamerReadResult
-
-    const mode = normalizeSongbeamerEncodingMode(encodingMode)
 
     // Handle UTF-8 BOM first so conversion is deterministic regardless of selected import mode.
     if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
         return { content: stripBom(buffer.slice(3).toString("utf-8")), encoding: "utf8" }
-    }
-
-    if (mode === "utf8") {
-        return { content: stripBom(buffer.toString("utf-8")), encoding: "utf8" }
-    }
-    if (mode === "latin1") {
-        return { content: decodeSongbeamerLatin1(buffer), encoding: "latin1" }
     }
 
     const declaredEncoding = parseDeclaredSongbeamerEncoding(buffer)
@@ -95,9 +79,9 @@ function decodeSongbeamerBuffer(buffer: Buffer, encodingMode: SongbeamerEncoding
     return { content: decodeSongbeamerLatin1(buffer), encoding: "latin1" }
 }
 
-async function readSongbeamerFile(filePath: string, encoding: SongbeamerEncodingMode): Promise<SongbeamerReadResult> {
+async function readSongbeamerFile(filePath: string): Promise<SongbeamerReadResult> {
     const buffer = await readFileBufferAsync(filePath)
-    return decodeSongbeamerBuffer(buffer, encoding)
+    return decodeSongbeamerBuffer(buffer)
 }
 const specialImports = {
     powerpoint: async (files: string[]) => {
@@ -201,7 +185,7 @@ export async function importShow(id: string, files: string[] | null) {
     if (id === "songbeamer") {
         const fileContents: { name: string; content: string; encoding: BufferEncoding }[] = []
         await asyncPool(20, files, async (file) => {
-            const decoded = await readSongbeamerFile(file, "auto")
+            const decoded = await readSongbeamerFile(file)
             fileContents.push({
                 name: getFileName(file),
                 content: decoded.content,

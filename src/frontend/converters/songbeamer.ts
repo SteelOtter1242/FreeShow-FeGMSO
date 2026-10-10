@@ -10,10 +10,10 @@ import { activePopup, alertMessage, categories, drawerTabsData, globalTags } fro
 import { translateText } from "../utils/language"
 import { createCategory, setTempShows } from "./importHelpers"
 
-function normalizeSongbeamerEncoding(encoding: unknown, fallback: BufferEncoding = "utf8"): BufferEncoding {
+function normalizeSongbeamerEncoding(encoding: unknown): BufferEncoding {
     if (encoding === "latin1") return "latin1"
     if (encoding === "utf8" || encoding === "utf-8") return "utf8"
-    return fallback === "latin1" ? "latin1" : "utf8"
+    return "utf8"
 }
 
 interface SongbeamerChord {
