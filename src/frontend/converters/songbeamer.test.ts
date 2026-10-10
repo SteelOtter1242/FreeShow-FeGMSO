@@ -89,9 +89,20 @@ vi.mock("./importHelpers", () => ({
 
 import { convertSongbeamerFiles } from "./songbeamer"
 
+async function runImport(files: any[]) {
+    h.capturedTempShows = []
+    convertSongbeamerFiles(files)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    return h.capturedTempShows
+}
+
 function layoutNotes(show: any): string {
     const layoutId = show.settings.activeLayout
     return show.layouts[layoutId]?.notes || ""
+}
+
+function findShowByName(name: string): any {
+    return h.capturedTempShows.find(({ show }) => show.name === name)?.show
 }
 
 function slideText(show: any): string {
@@ -106,26 +117,80 @@ function slideText(show: any): string {
 
 describe("convertSongbeamerFiles mixed metadata encoding", () => {
     it("decodes base64 comments with each file's own detected encoding", async () => {
-        h.capturedTempShows = []
-
         const utf8Song = "#Title=UTF8\n#Comments=w6Q=\n--\nVerse 1\nfür"
         const latin1Song = "#Title=Latin1\n#Comments=5A==\n--\nVerse 1\nfür"
 
-        convertSongbeamerFiles([
+        await runImport([
             { name: "utf8", content: utf8Song, encoding: "utf8" },
             { name: "latin1", content: latin1Song, encoding: "latin1" }
         ])
 
-        await new Promise((resolve) => setTimeout(resolve, 20))
-
         expect(h.capturedTempShows).toHaveLength(2)
 
-        const utf8Show = h.capturedTempShows.find(({ show }) => show.name === "UTF8")?.show
-        const latin1Show = h.capturedTempShows.find(({ show }) => show.name === "Latin1")?.show
+        const utf8Show = findShowByName("UTF8")
+        const latin1Show = findShowByName("Latin1")
 
         expect(layoutNotes(utf8Show)).toBe("ä")
         expect(layoutNotes(latin1Show).replaceAll("\u0000", "")).toBe("ä")
         expect(slideText(utf8Show)).toContain("für")
         expect(slideText(latin1Show)).toContain("für")
+    })
+
+    it("defaults to utf8 for missing or unknown encoding and strips BOM", async () => {
+        const bom8 = String.fromCodePoint(0xef, 0xbb, 0xbf)
+        const bom16 = String.fromCodePoint(0xfeff)
+        const utf8Song = `${bom8}#Title=NoEncoding\n#Comments=w6Q=\n--\nVerse 1\nfür`
+        const unknownSong = `${bom16}#Title=UnknownEncoding\n#Comments=w6Q=\n--\nVerse 1\nfür`
+
+        await runImport([
+            { name: "no-encoding", content: utf8Song },
+            { name: "unknown", content: unknownSong, encoding: "unknown" as any }
+        ])
+
+        const noEncodingShow = findShowByName("NoEncoding")
+        const unknownEncodingShow = findShowByName("UnknownEncoding")
+
+        expect(layoutNotes(noEncodingShow)).toBe("ä")
+        expect(layoutNotes(unknownEncodingShow)).toBe("ä")
+        expect(slideText(noEncodingShow)).toContain("für")
+        expect(slideText(unknownEncodingShow)).toContain("für")
+    })
+
+    it("falls back to latin1 when utf8 metadata decoding fails", async () => {
+        const fallbackSong = "#Title=Utf8Fallback\n#Comments=5A==\n--\nVerse 1"
+
+        await runImport([{ name: "fallback", content: fallbackSong, encoding: "utf8" }])
+
+        const fallbackShow = findShowByName("Utf8Fallback")
+        expect(layoutNotes(fallbackShow)).toBe("ä")
+    })
+
+    it("keeps invalid base64 metadata unchanged", async () => {
+        const invalidBase64Song = "#Title=InvalidBase64\n#Comments=not_base64!\n--\nVerse 1"
+
+        await runImport([{ name: "invalid", content: invalidBase64Song, encoding: "utf8" }])
+
+        const invalidShow = findShowByName("InvalidBase64")
+        expect(layoutNotes(invalidShow)).toBe("not_base64!")
+    })
+
+    it("skips malformed entries and parses chords metadata", async () => {
+        const chords = Buffer.from("1,1,C\r3,1,D", "latin1").toString("base64")
+        const chordsSong = `#Title=Chords\n#Chords=${chords}\n--\nVerse 1\nLine`
+
+        await runImport([
+            { name: "chords", content: chordsSong, encoding: "utf8" },
+            { name: "invalid-number", content: 1 as any, encoding: "utf8" },
+            { name: "empty", content: "", encoding: "utf8" }
+        ])
+
+        expect(h.capturedTempShows).toHaveLength(1)
+
+        const chordShow = findShowByName("Chords")
+        const firstSlide = Object.values(chordShow?.slides || {})[0] as any
+        const firstLineChords = firstSlide?.items?.[0]?.lines?.[0]?.chords || []
+
+        expect(firstLineChords).toHaveLength(2)
+        expect(firstLineChords.map((chord: any) => chord.key)).toEqual(["C", "D"])
     })
 })
