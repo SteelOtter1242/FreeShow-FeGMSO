@@ -54,6 +54,12 @@ interface SongbeamerMetadata {
     verse_order: { group: string; groupNumber: number | null }[]
 }
 
+type SongbeamerImportFile = {
+    name?: string
+    content?: string
+    encoding?: BufferEncoding | "utf-8"
+}
+
 function getGroupId(group: string | null, groupNumber: number | null): string | null {
     if (!group) return null
     return groupNumber !== null ? `${group}${groupNumber}` : group
@@ -63,7 +69,7 @@ function getGroupId(group: string | null, groupNumber: number | null): string | 
 const BOM8 = String.fromCodePoint(0xef, 0xbb, 0xbf) // UTF-8
 const BOM16 = String.fromCodePoint(0xfeff) // UTF-16
 
-export function convertSongbeamerFiles(data: any) {
+export function convertSongbeamerFiles(files: SongbeamerImportFile[]) {
     activePopup.set("alert")
     alertMessage.set("popup.importing")
 
@@ -71,17 +77,15 @@ export function convertSongbeamerFiles(data: any) {
     const defaultCategory = activeCategory && activeCategory !== "all" && activeCategory !== "unlabeled" ? activeCategory : "songbeamer"
     const categoryId = get(categories)[defaultCategory] ? defaultCategory : createCategory("Songbeamer")
 
-    const files = Array.isArray(data) ? data : data?.files || []
-    const defaultEncoding = normalizeSongbeamerEncoding(data?.encoding)
     const tempShows: { id: string; show: Show }[] = []
 
     setTimeout(() => {
-        files.forEach(({ name, content, encoding: fileEncoding }: any) => {
+        files.forEach(({ name, content, encoding: fileEncoding }) => {
             if (!content || typeof content !== "string") return
             if (content.startsWith(BOM8)) content = content.slice(3)
             if (content.startsWith(BOM16)) content = content.slice(1)
 
-            const effectiveEncoding = normalizeSongbeamerEncoding(fileEncoding, defaultEncoding)
+            const effectiveEncoding = normalizeSongbeamerEncoding(fileEncoding)
             const show = convertSongbeamerFileToShow(name || "Song", content, categoryId, effectiveEncoding)
             tempShows.push({ id: uid(), show })
         })

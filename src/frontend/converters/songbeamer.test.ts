@@ -4,6 +4,12 @@ const h = vi.hoisted(() => {
     const makeStore = (initial: unknown) => {
         let value = initial
         return {
+            set: (next: unknown) => {
+                value = next
+            },
+            update: (updater: (current: unknown) => unknown) => {
+                value = updater(value)
+            },
             _set: (next: unknown) => (value = next),
             subscribe: (run: (value: unknown) => void) => {
                 run(value)
@@ -13,17 +19,21 @@ const h = vi.hoisted(() => {
     }
 
     return {
+        activePopup: makeStore(null),
+        alertMessage: makeStore(""),
         categories: makeStore({ songbeamer: { name: "Songbeamer" } }),
+        drawerTabsData: makeStore({ shows: { activeSubTab: "songbeamer" } }),
         globalTags: makeStore({}),
         capturedTempShows: [] as { id: string; show: any }[]
     }
 })
 
-vi.mock("../stores", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../stores")>()
+vi.mock("../stores", () => {
     return {
-        ...actual,
+        activePopup: h.activePopup,
+        alertMessage: h.alertMessage,
         categories: h.categories,
+        drawerTabsData: h.drawerTabsData,
         globalTags: h.globalTags
     }
 })
@@ -64,6 +74,7 @@ vi.mock("../components/helpers/array", () => ({
 
 vi.mock("../components/helpers/history", () => ({ history: vi.fn() }))
 vi.mock("../components/helpers/setShow", () => ({ setQuickAccessMetadata: (show: any) => show }))
+vi.mock("../utils/language", () => ({ translateText: (value: string) => value }))
 
 vi.mock("../components/edit/scripts/itemHelpers", () => ({
     DEFAULT_ITEM_STYLE: "top:0;left:0;height:100px;width:100px;"
@@ -94,20 +105,18 @@ function slideText(show: any): string {
 }
 
 describe("convertSongbeamerFiles mixed metadata encoding", () => {
-    it("decodes base64 comments with each file's own detected encoding", () => {
+    it("decodes base64 comments with each file's own detected encoding", async () => {
         h.capturedTempShows = []
 
         const utf8Song = "#Title=UTF8\n#Comments=w6Q=\n--\nVerse 1\nfür"
         const latin1Song = "#Title=Latin1\n#Comments=5A==\n--\nVerse 1\nfür"
 
-        convertSongbeamerFiles({
-            files: [
-                { name: "utf8", content: utf8Song, encoding: "utf8" },
-                { name: "latin1", content: latin1Song, encoding: "latin1" }
-            ],
-            category: "songbeamer",
-            encoding: "utf8"
-        })
+        convertSongbeamerFiles([
+            { name: "utf8", content: utf8Song, encoding: "utf8" },
+            { name: "latin1", content: latin1Song, encoding: "latin1" }
+        ])
+
+        await new Promise((resolve) => setTimeout(resolve, 20))
 
         expect(h.capturedTempShows).toHaveLength(2)
 

@@ -199,12 +199,9 @@ export async function importShow(id: string, files: string[] | null) {
     }
 
     if (id === "songbeamer") {
-        const encoding: SongbeamerEncodingMode = normalizeSongbeamerEncodingMode(importSettings.encoding)
         const fileContents: { name: string; content: string; encoding: BufferEncoding }[] = []
-        const detectedEncodings: { [key: string]: number } = { utf8: 0, latin1: 0 }
         await asyncPool(20, files, async (file) => {
-            const decoded = await readSongbeamerFile(file, encoding)
-            detectedEncodings[decoded.encoding] = (detectedEncodings[decoded.encoding] || 0) + 1
+            const decoded = await readSongbeamerFile(file, "auto")
             fileContents.push({
                 name: getFileName(file),
                 content: decoded.content,
@@ -212,24 +209,8 @@ export async function importShow(id: string, files: string[] | null) {
             })
         })
 
-        const resolvedEncoding: BufferEncoding = detectedEncodings.latin1 > detectedEncodings.utf8 ? "latin1" : "utf8"
-
-        const category =
-            typeof importSettings.category === "string"
-                ? importSettings.category
-                : typeof importSettings.category?.id === "string"
-                  ? importSettings.category.id
-                  : "songbeamer"
-
-        const custom = {
-            files: fileContents,
-            length: fileContents.length,
-            encoding: resolvedEncoding,
-            category,
-            translationMethod: importSettings.translation
-        }
-
-        sendToMain(ToMain.IMPORT2, { channel: id, data: [], custom })
+        // Keep IMPORT2 payload as the legacy array contract while preserving per-file encoding metadata.
+        sendToMain(ToMain.IMPORT2, { channel: id, data: fileContents })
         return
     }
     const zip = ["zip", "probundle", "vpc", "qsp"]
